@@ -109,6 +109,49 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
   );
 }
 
+function EntryPlanCard({ result }: { result: AnalysisResult }) {
+  const plan = result.entryPlan;
+  const statusIcon = plan.state === "ready" ? "check" : plan.state === "blocked" ? "alert" : "clock";
+
+  return (
+    <section className={`entry-card card entry-${plan.state}`}>
+      <div className="section-heading entry-heading">
+        <div><span>建議入場價位</span><h2>回檔區間與突破確認</h2></div>
+        <em><Icon name={statusIcon} size={16} />{plan.stateLabel}</em>
+      </div>
+
+      {plan.available && plan.zoneLow !== null && plan.zoneHigh !== null && plan.preferred !== null && plan.breakout !== null ? (
+        <div className="entry-levels">
+          <div className="entry-zone">
+            <span>建議回檔區間</span>
+            <strong>{formatPrice(plan.zoneLow)}～{formatPrice(plan.zoneHigh)}</strong>
+            <small>{plan.basis}</small>
+          </div>
+          <div>
+            <span>優先觀察價</span>
+            <strong>{formatPrice(plan.preferred)}</strong>
+            <small>{plan.distanceLabel}</small>
+          </div>
+          <div className="entry-breakout">
+            <span>突破確認價</span>
+            <strong>{formatPrice(plan.breakout)}</strong>
+            <small>需同時符合放量與不過熱條件</small>
+          </div>
+        </div>
+      ) : (
+        <div className="entry-blocked-message">
+          <Icon name="alert" size={21} />
+          <div><strong>{plan.stateLabel}</strong><p>{plan.basis}</p></div>
+        </div>
+      )}
+
+      <p className="entry-disclaimer">
+        <Icon name="alert" size={16} />以上價位依歷史日線、均線、費波那契與 ATR 自動推算，可能受資料延遲、除權息、跳空及流動性影響；僅供研究與風險管理參考，不構成個別投資建議、招攬、報酬保證或代客操作。
+      </p>
+    </section>
+  );
+}
+
 function MarketGate({ market }: { market: MarketRegime }) {
   return (
     <section className={`market-gate card market-${market.state}`}>
@@ -314,10 +357,10 @@ export default function Home() {
       ].slice(0, 5);
       setHistory(nextHistory);
       localStorage.setItem("tw-signal-history", JSON.stringify(nextHistory));
-      localStorage.setItem(`tw-signal-cache-v2-${target}`, JSON.stringify({ savedAt: Date.now(), result: nextResult }));
+      localStorage.setItem(`tw-signal-cache-v3-${target}`, JSON.stringify({ savedAt: Date.now(), result: nextResult }));
     } catch (caught) {
       try {
-        const cached = localStorage.getItem(`tw-signal-cache-v2-${target}`);
+        const cached = localStorage.getItem(`tw-signal-cache-v3-${target}`);
         if (cached) {
           const parsed = JSON.parse(cached) as { savedAt: number; result: AnalysisResult };
           setResult(parsed.result);
@@ -368,7 +411,7 @@ export default function Home() {
         <section className="hero">
           <div className="eyebrow">趨勢 × 回檔 × 轉強 × 風控</div>
           <h1>現在，適合進場嗎？</h1>
-          <p>輸入上市股票或 ETF 代碼，直接檢查條件、停損、目標價與可承擔部位。</p>
+          <p>輸入上市股票或 ETF 代碼，直接檢查建議入場區間、停損、目標價與可承擔部位。</p>
 
           <form className="search-panel" onSubmit={submit}>
             <div className="search-field">
@@ -497,6 +540,8 @@ export default function Home() {
               <Metric label="ATR 14" value={formatPrice(result.metrics.atr14)} hint={`約 ${(result.metrics.atr14 / result.price * 100).toFixed(2)}%`} />
             </section>
 
+            <EntryPlanCard result={result} />
+
             {fibonacci ? <FibonacciCard fibonacci={fibonacci} /> : null}
 
             <section className="chart-card card">
@@ -532,7 +577,7 @@ export default function Home() {
                 <Icon name="shield" size={24} />
               </div>
               <div className="risk-levels">
-                <div><span>參考進場</span><strong>{formatPrice(result.risk.referenceEntry)}</strong><small>以最新收盤估算</small></div>
+                <div><span>{result.entryPlan.available ? "建議價估算" : "風險觀察基準"}</span><strong>{formatPrice(result.risk.referenceEntry)}</strong><small>{result.entryPlan.available ? "以優先觀察價計算" : "目前不構成進場建議"}</small></div>
                 <div className="stop"><span>停損</span><strong>{formatPrice(result.risk.stop)}</strong><small>-{result.risk.stopPercent.toFixed(2)}%</small></div>
                 <div className="target"><span>3R 目標</span><strong>{formatPrice(result.risk.target)}</strong><small>風報比 1 : 3</small></div>
               </div>
@@ -547,7 +592,7 @@ export default function Home() {
                   <div><dt>含成本風險</dt><dd>{formatCurrency(result.risk.estimatedRisk)}</dd></div>
                 </dl>
               </div>
-              <p className="execution-note"><Icon name="alert" size={17} />實際下單前，請用下一交易日成交價重新計算停損與股數；跳空超過預期時放棄進場。</p>
+              <p className="execution-note"><Icon name="alert" size={17} />實際下單前，請用成交價重新計算停損與股數；若開盤跳空超過建議區間、風報比不足或大盤轉弱，應放棄進場。</p>
             </section>
 
             <section className="details-grid">
@@ -583,7 +628,7 @@ export default function Home() {
             <article><b>05</b><h3>費波那契定位</h3><p>用回檔位找支撐區、用擴展位規劃突破後目標，但不單獨作為買點。</p></article>
             <article><b>06</b><h3>部位由風險決定</h3><p>以 ATR 與近期低點設停損，再乘上大盤允許的部位係數。</p></article>
           </div>
-          <p className="disclaimer">本工具是規則化研究與風險管理輔助，不是投資建議、報酬保證或自動下單服務。訊號應搭配個人財務狀況與事件風險判斷。</p>
+          <p className="disclaimer">免責聲明：本工具依公開歷史資料進行規則化研究與風險管理試算，所有訊號、建議區間、停損、目標價及股數均非個別投資建議、證券推薦、招攬、報酬保證或自動下單服務。資料可能延遲、遺漏或因除權息與市場事件失真；使用者應自行查證並承擔交易決策及損益。</p>
         </section>
 
         {history.length ? (

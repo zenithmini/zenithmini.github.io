@@ -105,6 +105,18 @@ export type AnalysisResult = {
     ma99Slope5Percent: number;
   };
   rules: RuleResult[];
+  entryPlan: {
+    available: boolean;
+    state: "ready" | "wait-pullback" | "wait-breakout" | "blocked";
+    stateLabel: string;
+    zoneLow: number | null;
+    zoneHigh: number | null;
+    preferred: number | null;
+    breakout: number | null;
+    distancePercent: number | null;
+    distanceLabel: string;
+    basis: string;
+  };
   risk: {
     referenceEntry: number;
     stop: number;
@@ -771,6 +783,7 @@ export function analyzeBars(
   const distanceToMa25Percent = ((latest.close - ma25) / ma25) * 100;
   const ma99Slope5Percent = ((ma99 - ma99Past) / ma99Past) * 100;
   const recentHigh = Math.max(...bars.slice(-21, -1).map((bar) => bar.high));
+  const fibonacci = analyzeFibonacci(code, name, bars);
 
   const trendPass = ma25 > ma99 && ma99Slope5Percent > -0.25;
   const longPricePass = latest.close > ma99;
@@ -855,19 +868,60 @@ export function analyzeBars(
   warnings.push("證交所提供的是原始成交價；除權息或分割後，請另以還原股價交叉確認。");
 
   const score = rules.reduce((sum, rule) => sum + (rule.pass ? rule.weight : 0), 0);
+  const supportCandidates = [
+    { label: "MA25", price: ma25, baseScore: 2 },
+    ...(fibonacci.direction === "up"
+      ? fibonacci.retracements
+          .filter((level) => [0.382, 0.5, 0.618].includes(level.ratio))
+          .map((level) => ({ label: `費波 ${level.label}`, price: level.price, baseScore: 2 }))
+      : []),
+  ].filter(
+    (candidate) =>
+      candidate.price >= ma99 &&
+      candidate.price <= latest.close + atr14 * 0.5 &&
+      latest.close - candidate.price <= atr14 * 4,
+  );
+  const scoredSupports = supportCandidates
+    .map((candidate) => ({
+      ...candidate,
+      score:
+        candidate.baseScore +
+        supportCandidates.filter(
+          (other) => other !== candidate && Math.abs(other.price - candidate.price) <= atr14 * 0.5,
+        ).length * 2,
+    }))
+    .sort((left, right) => right.score - left.score || Math.abs(latest.close - left.price) - Math.abs(latest.close - right.price));
+  const selectedSupport = scoredSupports[0] ?? { label: "MA25", price: ma25, baseScore: 2, score: 2 };
+  const confluenceLabels = supportCandidates
+    .filter((candidate) => Math.abs(candidate.price - selectedSupport.price) <= atr14 * 0.5)
+    .map((candidate) => candidate.label);
+  const preferredEntry = roundToTick(selectedSupport.price, "down");
+  const zoneLow = roundToTick(Math.max(ma99, selectedSupport.price - atr14 * 0.25), "down");
+  const zoneHigh = roundToTick(selectedSupport.price + atr14 * 0.25, "up");
+  const breakoutEntry = roundToTick(recentHigh + tickSize(recentHigh), "up");
+  const distanceToPreferredPercent = ((preferredEntry - latest.close) / latest.close) * 100;
+  const inEntryZone = latest.close >= zoneLow && latest.close <= zoneHigh;
   const recentLow = Math.min(...bars.slice(-10).map((bar) => bar.low));
-  const rawStop = Math.max(recentLow - tickSize(recentLow), latest.close - atr14 * 2);
+  const volatilityStop = preferredEntry - atr14 * 2;
+  const structureStop = recentLow - tickSize(recentLow);
+  const rawStop = Math.min(
+    preferredEntry - atr14 * 0.75,
+    Math.max(
+      volatilityStop,
+      structureStop < preferredEntry ? structureStop : volatilityStop,
+    ),
+  );
   const stop = roundToTick(rawStop, "down");
-  const riskDistance = latest.close - stop;
-  const stopPercent = (riskDistance / latest.close) * 100;
-  const target = roundToTick(latest.close + riskDistance * 3, "up");
+  const riskDistance = preferredEntry - stop;
+  const stopPercent = (riskDistance / preferredEntry) * 100;
+  const target = roundToTick(preferredEntry + riskDistance * 3, "up");
   const feeRate = 0.001425;
   const taxRate = code.startsWith("00") ? 0.001 : 0.003;
-  const riskPerShare = riskDistance + latest.close * feeRate + stop * (feeRate + taxRate);
+  const riskPerShare = riskDistance + preferredEntry * feeRate + stop * (feeRate + taxRate);
   const capital = Math.max(0, settings.capital || 0);
   const riskBudget = capital * Math.max(0, settings.riskPercent || 0) * 0.01;
   const exposureBudget = capital * Math.max(0, settings.maxExposurePercent || 0) * 0.01;
-  let shares = Math.max(0, Math.floor(Math.min(riskBudget / riskPerShare, exposureBudget / latest.close)));
+  let shares = Math.max(0, Math.floor(Math.min(riskBudget / riskPerShare, exposureBudget / preferredEntry)));
   if (!settings.allowOddLot) shares = Math.floor(shares / 1000) * 1000;
   const riskTooWide = stopPercent <= 0 || stopPercent > 8;
   if (riskTooWide) shares = 0;
@@ -918,6 +972,40 @@ export function analyzeBars(
     summary = "個股條件已通過，但加權指數仍是中性環境；部位自動減半，不追價。";
   }
 
+  const entryBlocked =
+    market.state === "bear" ||
+    suspiciousJumps.length > 0 ||
+    !trendPass ||
+    !longPricePass ||
+    !liquidityPass ||
+    riskTooWide;
+  if (entryBlocked) shares = 0;
+  let entryState: AnalysisResult["entryPlan"]["state"] = "wait-breakout";
+  let entryStateLabel = "等待轉強確認";
+  let distanceLabel =
+    Math.abs(distanceToPreferredPercent) < 0.05
+      ? "現價接近優先價"
+      : distanceToPreferredPercent < 0
+        ? `現價需回檔 ${Math.abs(distanceToPreferredPercent).toFixed(2)}%`
+        : `現價需上漲 ${distanceToPreferredPercent.toFixed(2)}%`;
+
+  if (entryBlocked) {
+    entryState = "blocked";
+    entryStateLabel = "目前不提供進場價";
+    distanceLabel = "先等待大盤、趨勢或資料條件恢復";
+  } else if (breakoutPass) {
+    entryState = "ready";
+    entryStateLabel = market.state === "neutral" ? "突破成立，僅小量試單" : "突破條件已成立";
+    distanceLabel = "放量突破已觸發，仍不可追高";
+  } else if (inEntryZone && turnUpPass && noChasePass) {
+    entryState = "ready";
+    entryStateLabel = market.state === "neutral" ? "進入區間，僅小量試單" : "進入區間且出現轉強";
+    distanceLabel = "現價位於建議區間內";
+  } else if (latest.close > zoneHigh) {
+    entryState = "wait-pullback";
+    entryStateLabel = "等待回檔至建議區";
+  }
+
   const changePercent = previous.close ? ((latest.close - previous.close) / previous.close) * 100 : 0;
 
   return {
@@ -948,8 +1036,22 @@ export function analyzeBars(
       ma99Slope5Percent,
     },
     rules,
+    entryPlan: {
+      available: !entryBlocked,
+      state: entryState,
+      stateLabel: entryStateLabel,
+      zoneLow: entryBlocked ? null : zoneLow,
+      zoneHigh: entryBlocked ? null : zoneHigh,
+      preferred: entryBlocked ? null : preferredEntry,
+      breakout: entryBlocked ? null : breakoutEntry,
+      distancePercent: entryBlocked ? null : distanceToPreferredPercent,
+      distanceLabel,
+      basis: entryBlocked
+        ? "未通過大盤、趨勢、流動性、資料品質或風險檢查，因此不顯示可能被誤用的價位。"
+        : `${confluenceLabels.length ? confluenceLabels.join("＋") : selectedSupport.label}，搭配 ATR 14 建立價格區間。`,
+    },
     risk: {
-      referenceEntry: latest.close,
+      referenceEntry: preferredEntry,
       stop,
       target,
       riskPerShare,
@@ -958,7 +1060,7 @@ export function analyzeBars(
       shares,
       lots: Math.floor(shares / 1000),
       oddShares: shares % 1000,
-      estimatedPosition: shares * latest.close,
+      estimatedPosition: shares * preferredEntry,
       estimatedRisk: shares * riskPerShare,
       feeRate,
       taxRate,
