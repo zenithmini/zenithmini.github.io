@@ -31,6 +31,8 @@ jobs:
 
       - name: Build static site
         run: npm run build:pages
+        env:
+          NEXT_PUBLIC_SIGNAL_API_URL: ${{ vars.SIGNAL_API_URL || 'https://tw-stock-signal-api.market-signal-tools.workers.dev' }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

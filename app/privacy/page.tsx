@@ -13,8 +13,8 @@ export default function PrivacyPage() {
       <header className="privacy-hero">
         <span>PRIVACY</span>
         <h1>隱私權政策</h1>
-        <p>我們重視使用者的隱私。本頁說明台股進場判斷器如何使用瀏覽器資料、第三方市場資料服務，以及未來啟用廣告後的 Cookie 處理方式。</p>
-        <small className="privacy-date">最後更新：2026 年 8 月 16 日</small>
+        <p>我們重視使用者的隱私。本頁說明台股進場判斷器如何使用瀏覽器資料、公開市場資料服務，以及 Google AdSense 的 Cookie 處理方式。</p>
+        <small className="privacy-date">最後更新：2026 年 8 月 20 日</small>
       </header>
 
       <div className="privacy-content">
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
 
         <section className="card">
           <h2>二、網站不主動蒐集的資料</h2>
-          <p>本網站目前沒有會員系統，不要求輸入姓名、電話、電子郵件、身分證字號、銀行帳戶、券商帳戶或信用卡資料，也不會將分析結果送往網站營運者的資料庫。</p>
+          <p>本網站目前沒有會員系統，不要求輸入姓名、電話、電子郵件、身分證字號、銀行帳戶、券商帳戶或信用卡資料。分析服務只接收使用者輸入的股票代碼，不接收本金、風險比例或自選股清單。</p>
         </section>
 
         <section className="card">
@@ -34,14 +34,14 @@ export default function PrivacyPage() {
         </section>
 
         <section className="card">
-          <h2>四、第三方市場資料服務</h2>
-          <p>使用者執行分析時，瀏覽器會向 FinMind 公開 API 或臺灣證券交易所備援端點請求市場資料。第三方服務可能依其政策記錄必要的連線資訊，例如 IP 位址、瀏覽器資訊、請求時間與使用量。</p>
+          <h2>四、公開市場資料服務</h2>
+          <p>使用者執行分析時，瀏覽器會將股票代碼送到本網站的私人分析服務；分析服務再向臺灣證券交易所公開端點請求盤後市場資料並完成運算。資料依政府資料開放授權條款第 1 版利用並於網站標示來源。網站代管、分析服務與證券交易所可能依各自政策記錄必要的連線資訊，例如 IP 位址、瀏覽器資訊、請求時間與使用量。</p>
         </section>
 
         <section className="card">
           <h2>五、Google AdSense 與廣告 Cookie</h2>
           <ul>
-            <li>本網站未來可能使用 Google AdSense 顯示廣告。</li>
+            <li>本網站已載入 Google AdSense 自動廣告程式；廣告是否顯示及版位由 Google、審核狀態與網站設定共同決定。</li>
             <li>Google 等第三方供應商可能使用 Cookie，依使用者先前造訪本網站或其他網站的情況提供及衡量廣告。</li>
             <li>Google 使用廣告 Cookie，使 Google 與合作夥伴能依使用者的瀏覽情況提供個人化或非個人化廣告。</li>
             <li>使用者可前往 <a href="https://adssettings.google.com/" rel="noreferrer" target="_blank">Google 廣告設定</a>管理個人化廣告，也可依瀏覽器設定限制或刪除 Cookie。</li>
