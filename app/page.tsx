@@ -3,14 +3,12 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import {
   AnalysisResult,
+  AnalysisPayload,
   FibonacciAnalysis,
   MarketRegime,
   StrategySettings,
-  analyzeBars,
-  analyzeFibonacci,
-  analyzeMarketRegime,
-  fetchTaiexDailyBars,
-  fetchTwseDailyBars,
+  applyPositionSizing,
+  fetchStockAnalysis,
   isSupportedStockCode,
   normalizeStockCode,
 } from "@/lib/strategy";
@@ -290,57 +288,20 @@ export default function Home() {
     setMarketResult(null);
     setError("");
     setProgress(0);
-    setLoadingStage("先判斷台股大盤");
+    setLoadingStage("伺服器先判斷大盤，再分析個股");
     setUsingCache(false);
     try {
-      let market: MarketRegime | null = null;
-      let cachedMarket: { savedAt: number; market: MarketRegime } | null = null;
-      try {
-        const storedMarket = localStorage.getItem("tw-signal-market-v2");
-        if (storedMarket) cachedMarket = JSON.parse(storedMarket);
-      } catch {
-        cachedMarket = null;
-      }
-
-      if (cachedMarket && Date.now() - cachedMarket.savedAt < 60 * 60 * 1000) {
-        market = cachedMarket.market;
-        setProgress(35);
-      } else {
-        try {
-          const marketBars = await fetchTaiexDailyBars((completed, total) =>
-            setProgress(Math.round((completed / total) * 35)),
-          );
-          market = analyzeMarketRegime(marketBars);
-          localStorage.setItem("tw-signal-market-v2", JSON.stringify({ savedAt: Date.now(), market }));
-        } catch (marketError) {
-          if (cachedMarket && Date.now() - cachedMarket.savedAt < 7 * 24 * 60 * 60 * 1000) {
-            market = {
-              ...cachedMarket.market,
-              summary: `${cachedMarket.market.summary}（目前使用最近一次大盤快取）`,
-            };
-          } else {
-            throw marketError;
-          }
-        }
-      }
-
-      setMarketResult(market);
-
-      setLoadingStage("再分析個股條件");
-      const data = await fetchTwseDailyBars(target, (completed, total) =>
-        setProgress(35 + Math.round((completed / total) * 65)),
-      );
-      const nextFibonacci = analyzeFibonacci(target, data.name, data.bars);
-      setFibonacci(nextFibonacci);
-      if (data.bars.length < 120) {
+      setProgress(15);
+      const payload = await fetchStockAnalysis(target);
+      setProgress(100);
+      setMarketResult(payload.market);
+      setFibonacci(payload.fibonacci);
+      if (!payload.result) {
         setStatus("partial");
-        setError(
-          `${data.name}（${target}）目前只有 ${data.bars.length} 個交易日，尚不足以計算 MA99；` +
-            "本次只顯示費波那契觀察區，不提供進場訊號與部位建議。",
-        );
+        setError(payload.notice || "資料期間不足，本次只顯示費波那契觀察區。");
         return;
       }
-      const nextResult = analyzeBars(target, data.name, data.bars, settings, market);
+      const nextResult = applyPositionSizing(payload.result, settings);
       setResult(nextResult);
       setStatus("success");
       const nextHistory: HistoryItem[] = [
@@ -357,16 +318,19 @@ export default function Home() {
       ].slice(0, 5);
       setHistory(nextHistory);
       localStorage.setItem("tw-signal-history", JSON.stringify(nextHistory));
-      localStorage.setItem(`tw-signal-cache-v3-${target}`, JSON.stringify({ savedAt: Date.now(), result: nextResult }));
+      localStorage.setItem(`tw-signal-cache-v4-${target}`, JSON.stringify({ savedAt: Date.now(), payload }));
     } catch (caught) {
       try {
-        const cached = localStorage.getItem(`tw-signal-cache-v3-${target}`);
+        const cached = localStorage.getItem(`tw-signal-cache-v4-${target}`);
         if (cached) {
-          const parsed = JSON.parse(cached) as { savedAt: number; result: AnalysisResult };
-          setResult(parsed.result);
+          const parsed = JSON.parse(cached) as { savedAt: number; payload: AnalysisPayload };
+          setMarketResult(parsed.payload.market);
+          setFibonacci(parsed.payload.fibonacci);
+          if (!parsed.payload.result) throw caught;
+          setResult(applyPositionSizing(parsed.payload.result, settings));
           setStatus("success");
           setUsingCache(true);
-          setError("目前無法連到證交所，以下為這台裝置上次成功分析的結果。");
+          setError("目前無法連到分析服務，以下為這台裝置上次成功分析的結果。");
           return;
         }
       } catch {
@@ -411,7 +375,7 @@ export default function Home() {
         <section className="hero">
           <div className="eyebrow">趨勢 × 回檔 × 轉強 × 風控</div>
           <h1>現在，適合進場嗎？</h1>
-          <p>輸入上市股票或 ETF 代碼，直接檢查建議入場區間、停損、目標價與可承擔部位。</p>
+          <p>輸入上市股票或 ETF 代碼，由安全分析服務檢查建議入場區間、停損、目標價與可承擔部位。</p>
 
           <form className="search-panel" onSubmit={submit}>
             <div className="search-field">
@@ -474,7 +438,7 @@ export default function Home() {
             <div className="empty-icon"><Icon name="search" size={26} /></div>
             <div>
               <h2>先分析 0050，看看今天的條件</h2>
-              <p>系統會先判斷加權指數多空，再分析個股條件、風控與部位。</p>
+              <p>私人分析服務會先判斷加權指數多空，再分析個股條件；本金與風險設定只留在你的裝置。</p>
             </div>
             <button type="button" onClick={() => void runAnalysis("0050")}>分析 0050</button>
           </section>
@@ -646,17 +610,14 @@ export default function Home() {
           </section>
         ) : null}
 
-        <section className="ad-placeholder" aria-label="廣告預留區">
-          <span>廣告</span>
-          <div>
-            <strong>自適應橫幅廣告預留區</strong>
-            <small>AdSense 審核通過後，廣告將在此自動配合手機與電腦寬度顯示。</small>
-          </div>
-        </section>
       </div>
 
       <footer>
-        <span>資料來源：FinMind 日線資料・TWSE 備援</span>
+        <span>
+          資料來源：
+          <a href="https://data.gov.tw/dataset/11549" rel="noreferrer" target="_blank">臺灣證券交易所股份有限公司「個股日成交資訊」</a>
+          ・依政府資料開放授權條款第 1 版利用
+        </span>
         <span className="footer-links"><a href="./privacy/">隱私權政策</a><i />僅支援上市股票與 ETF・日線收盤後更新</span>
       </footer>
     </main>

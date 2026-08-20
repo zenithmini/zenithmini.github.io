@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   manifest: "./manifest.webmanifest",
   other: {
     "codex-preview": "development",
+    "google-adsense-account": "ca-pub-6042352419761579",
   },
   icons: {
     icon: "./icon.svg",
@@ -22,6 +23,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-Hant">
+      <head>
+        <script
+          async
+          crossOrigin="anonymous"
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6042352419761579"
+        />
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );
