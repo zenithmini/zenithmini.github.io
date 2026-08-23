@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AnalysisResult,
   AnalysisPayload,
@@ -70,6 +70,57 @@ function TermTip({ label, children }: { label: string; children: ReactNode }) {
       <summary aria-label={`說明：${label}`}><Icon name="info" size={15} /></summary>
       <span>{children}</span>
     </details>
+  );
+}
+
+function AdSenseUnit({ slot, label }: { slot: string; label: string }) {
+  const adRef = useRef<HTMLModElement | null>(null);
+  const [unfilled, setUnfilled] = useState(false);
+
+  useEffect(() => {
+    const ad = adRef.current;
+    if (!ad) return;
+
+    const updateStatus = () => {
+      const status = ad.getAttribute("data-ad-status");
+      if (status === "unfilled" || status === "unfill-optimized") setUnfilled(true);
+    };
+    const observer = new MutationObserver(updateStatus);
+    observer.observe(ad, { attributes: true, attributeFilter: ["data-ad-status"] });
+
+    const timer = window.setTimeout(() => {
+      if (!ad.getAttribute("data-adsbygoogle-status")) {
+        try {
+          const adWindow = window as Window & { adsbygoogle?: Array<Record<string, unknown>> };
+          (adWindow.adsbygoogle ||= []).push({});
+        } catch (error) {
+          console.warn("AdSense unit failed to initialize", error);
+        }
+      }
+      updateStatus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [slot]);
+
+  if (unfilled) return null;
+
+  return (
+    <aside className="ad-placement" aria-label={label}>
+      <span className="ad-placement-label">廣告</span>
+      <ins
+        ref={adRef}
+        className="adsbygoogle"
+        style={{ display: "block" }}
+        data-ad-client="ca-pub-6042352419761579"
+        data-ad-slot={slot}
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      />
+    </aside>
   );
 }
 
@@ -643,6 +694,8 @@ export default function Home() {
 
             <EntryPlanCard result={result} />
 
+            <AdSenseUnit slot="9369999183" label="個股分析中間廣告" />
+
             {fibonacci ? <FibonacciCard fibonacci={fibonacci} /> : null}
 
             <section className="chart-card card">
@@ -775,6 +828,9 @@ export default function Home() {
                 <div className="radar-groups">
                   <ScreenerGroup title="策略條件已符合" explanation="大盤允許，個股的趨勢與觸發條件也已成立；仍要核對實際成交價。" items={screenerSnapshot.groups.ready} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
                   <ScreenerGroup title="接近進場區" explanation="距離回檔參考區 1.5% 以內，等待價格進區並出現轉強。" items={screenerSnapshot.groups.nearEntry} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
+                  <div className="radar-ad-row">
+                    <AdSenseUnit slot="3727674747" label="0050 機會雷達中間廣告" />
+                  </div>
                   <ScreenerGroup title="關鍵突破觀察" explanation="距突破參考價 1.5% 以內，必須搭配成交量且不可追高。" items={screenerSnapshot.groups.nearBreakout} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
                   <ScreenerGroup title="暫不適合" explanation="大盤、趨勢、過熱、流動性或資料品質未通過；列出來是提醒避開。" items={screenerSnapshot.groups.blocked} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
                 </div>
@@ -794,6 +850,7 @@ export default function Home() {
                 </details>
 
                 <p className="radar-disclaimer">0050 成分股會定期調整；本頁依標示日期的清單與收盤資料篩選。分類只表示規則是否符合，不代表未來一定上漲，也不構成買進推薦。</p>
+                <AdSenseUnit slot="6743835843" label="0050 機會雷達底部廣告" />
               </div>
             ) : null}
           </div>
@@ -840,6 +897,8 @@ export default function Home() {
             </div>
           </section>
         ) : null}
+
+        {activeView === "analysis" ? <AdSenseUnit slot="5040756419" label="個股分析底部廣告" /> : null}
 
       </div>
 
