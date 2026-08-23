@@ -729,7 +729,17 @@ button { color: inherit; }
 .radar-disclaimer { background: var(--amber-soft); border-radius: 10px; color: #77501f; font-size: 11px; line-height: 1.7; margin: 0; padding: 12px 14px; }
 
 .history { margin-top: 18px; }
-.history-list { display: grid; }
+.history-list {
+  display: grid;
+  max-height: 330px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-color: rgba(18, 62, 53, .28) transparent;
+  scrollbar-width: thin;
+}
+.history-list::-webkit-scrollbar { width: 6px; }
+.history-list::-webkit-scrollbar-thumb { background: rgba(18, 62, 53, .25); border-radius: 99px; }
 .history-list button { align-items: center; background: transparent; border: 0; border-top: 1px solid var(--line); cursor: pointer; display: grid; gap: 12px; grid-template-columns: 1fr auto 86px; padding: 13px 0; text-align: left; }
 .history-list button:first-child { border-top: 0; }
 .history-list button:hover span { color: var(--green); }
