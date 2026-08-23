@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   description: "輸入上市股票或 ETF 代碼，分析進場條件、停損、目標價與可承擔部位。",
   manifest: "./manifest.webmanifest",
   other: {
-    "codex-preview": "development",
     "google-adsense-account": "ca-pub-6042352419761579",
   },
   icons: {
