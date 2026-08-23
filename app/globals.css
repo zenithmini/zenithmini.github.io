@@ -257,6 +257,39 @@ button { color: inherit; }
 .analyze-button:hover { background: var(--forest-2); transform: translateY(-1px); }
 .analyze-button:disabled { cursor: wait; opacity: .72; transform: none; }
 
+.ad-placement {
+  background: rgba(255, 255, 255, .58);
+  border: 1px solid rgba(18, 62, 53, .1);
+  border-radius: 16px;
+  margin: 18px 0;
+  min-height: 116px;
+  overflow: hidden;
+  padding: 7px 10px 10px;
+  width: 100%;
+}
+
+.ad-placement-label {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  letter-spacing: .12em;
+  margin-bottom: 5px;
+  text-align: center;
+}
+
+.ad-placement .adsbygoogle {
+  min-height: 90px;
+  width: 100%;
+}
+
+.ad-placement .adsbygoogle[data-ad-status="unfilled"],
+.ad-placement .adsbygoogle[data-ad-status="unfill-optimized"] {
+  display: none !important;
+}
+
+.radar-ad-row { grid-column: 1 / -1; }
+.radar-ad-row .ad-placement { margin: 0; }
+
 .watchlist {
   align-items: center;
   display: flex;
