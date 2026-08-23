@@ -468,7 +468,7 @@ export default function Home() {
           score: nextResult.score,
         },
         ...history.filter((item) => item.code !== target),
-      ].slice(0, 5);
+      ].slice(0, 20);
       setHistory(nextHistory);
       localStorage.setItem("tw-signal-history", JSON.stringify(nextHistory));
       localStorage.setItem(`tw-signal-cache-v4-${target}`, JSON.stringify({ savedAt: Date.now(), payload }));
@@ -885,7 +885,10 @@ export default function Home() {
 
         {activeView === "analysis" && history.length ? (
           <section className="history card">
-            <div className="section-heading"><div><span>本機紀錄</span><h2>最近分析</h2></div></div>
+            <div className="section-heading">
+              <div><span>本機紀錄</span><h2>最近分析</h2></div>
+              <small>{history.length} 筆・最多保留 20 筆</small>
+            </div>
             <div className="history-list">
               {history.map((item) => (
                 <button type="button" key={`${item.code}-${item.dataDate}`} onClick={() => void runAnalysis(item.code)}>
