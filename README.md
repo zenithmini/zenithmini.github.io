@@ -53,8 +53,9 @@ GitHub Pages 使用的靜態檔會在 `dist/client`。
 
 - 全站已載入發布商 `ca-pub-6042352419761579` 的官方 AdSense 自動廣告程式，並提供相同發布商的 `ads.txt`。
 - 頁尾提供隱私權政策，說明本機儲存、市場資料來源與未來的廣告 Cookie。
-- AdSense 核准後，在控制台開啟 Auto ads，優先使用可關閉的 Anchor ads 與 In-page ads；不需要為自動廣告建立手動廣告單元。
-- 若日後改用手動廣告單元，需先在 AdSense 建立廣告單元並取得 `data-ad-slot`，不可自行虛構編號。
+- 個股分析中間／底部與 0050 雷達中間／底部，各使用已建立的回應式展示廣告單元；Google 回傳 `unfilled` 時版位會自動收合，不留下大塊空白。
+- 手動版位之外仍可在 AdSense 控制台開啟 Auto ads。若不希望 Google 另行插入頁內廣告，可關閉 Auto ads 的 In-page formats，只保留需要的錨定或全螢幕格式。
+- 不可把廣告做成浮動遮擋內容、誘導點擊，或自行點擊網站上的廣告。
 
 ## 策略摘要
 
