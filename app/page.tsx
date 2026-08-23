@@ -1,14 +1,17 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AnalysisResult,
   AnalysisPayload,
   FibonacciAnalysis,
   MarketRegime,
+  ScreenerItem,
+  ScreenerSnapshot,
   StrategySettings,
   applyPositionSizing,
   fetchStockAnalysis,
+  fetchTaiwan50Screener,
   isSupportedStockCode,
   normalizeStockCode,
 } from "@/lib/strategy";
@@ -34,7 +37,9 @@ const formatPrice = (value: number) =>
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("zh-TW", { style: "currency", currency: "TWD", maximumFractionDigits: 0 }).format(value);
 
-function Icon({ name, size = 20 }: { name: "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock"; size?: number }) {
+type IconName = "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock" | "menu" | "close" | "home" | "radar" | "book" | "info";
+
+function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<typeof name, ReactNode> = {
     search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
     star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/>,
@@ -43,11 +48,71 @@ function Icon({ name, size = 20 }: { name: "search" | "star" | "shield" | "chart
     check: <path d="m5 12 4 4L19 6"/>,
     alert: <><path d="M12 4 3.5 19h17Z"/><path d="M12 9v4"/><path d="M12 16h.01"/></>,
     clock: <><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></>,
+    menu: <><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></>,
+    close: <><path d="m6 6 12 12"/><path d="m18 6-12 12"/></>,
+    home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></>,
+    radar: <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 12 18 6"/><path d="M12 2v2"/><path d="M22 12h-2"/></>,
+    book: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22Z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22Z"/></>,
+    info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7h.01"/></>,
   };
   return (
     <svg aria-hidden="true" className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {paths[name]}
     </svg>
+  );
+}
+
+type ViewMode = "analysis" | "screener" | "guide";
+
+function TermTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <details className="term-tip">
+      <summary aria-label={`說明：${label}`}><Icon name="info" size={15} /></summary>
+      <span>{children}</span>
+    </details>
+  );
+}
+
+function ScreenerStockCard({ item, onAnalyze }: { item: ScreenerItem; onAnalyze: (code: string) => void }) {
+  return (
+    <button className={`radar-stock radar-${item.category}`} type="button" onClick={() => onAnalyze(item.code)}>
+      <span className="radar-stock-head">
+        <span><strong>{item.code}</strong><small>{item.name}</small></span>
+        <em>{item.score} 分</em>
+      </span>
+      <span className="radar-price">
+        <strong>{formatPrice(item.price)}</strong>
+        <small className={item.changePercent >= 0 ? "price-up" : "price-down"}>{item.changePercent >= 0 ? "+" : ""}{item.changePercent.toFixed(2)}%</small>
+      </span>
+      <span className="radar-reason"><b>為何列入：</b>{item.reason}</span>
+      <span className="radar-action">查看完整分析 →</span>
+    </button>
+  );
+}
+
+function ScreenerGroup({
+  title,
+  explanation,
+  items,
+  onAnalyze,
+}: {
+  title: string;
+  explanation: string;
+  items: ScreenerItem[];
+  onAnalyze: (code: string) => void;
+}) {
+  return (
+    <section className="radar-group card">
+      <div className="radar-group-heading">
+        <div><h2>{title}</h2><p>{explanation}</p></div>
+        <strong>{items.length}</strong>
+      </div>
+      {items.length ? (
+        <div className="radar-stock-grid">
+          {items.slice(0, 5).map((item) => <ScreenerStockCard item={item} key={item.code} onAnalyze={onAnalyze} />)}
+        </div>
+      ) : <p className="radar-empty">今天沒有符合這一類條件的成分股。</p>}
+    </section>
   );
 }
 
@@ -249,6 +314,30 @@ export default function Home() {
   const [watchlist, setWatchlist] = useState<string[]>(["0050", "2330"]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [usingCache, setUsingCache] = useState(false);
+  const [activeView, setActiveView] = useState<ViewMode>("analysis");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [screenerStatus, setScreenerStatus] = useState<"loading" | "building" | "ready" | "error">("loading");
+  const [screenerSnapshot, setScreenerSnapshot] = useState<ScreenerSnapshot | null>(null);
+  const [screenerProgress, setScreenerProgress] = useState({ completed: 0, total: 50, failed: 0 });
+  const [screenerError, setScreenerError] = useState("");
+
+  const loadScreener = useCallback(async () => {
+    setScreenerStatus((current) => current === "building" ? "building" : "loading");
+    setScreenerError("");
+    try {
+      const payload = await fetchTaiwan50Screener();
+      if (payload.status === "ready") {
+        setScreenerSnapshot(payload.snapshot);
+        setScreenerStatus("ready");
+      } else {
+        setScreenerProgress(payload.progress);
+        setScreenerStatus("building");
+      }
+    } catch (caught) {
+      setScreenerStatus("error");
+      setScreenerError(caught instanceof Error ? caught.message : "0050 雷達暫時無法使用。");
+    }
+  }, []);
 
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
@@ -276,11 +365,24 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadScreener(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadScreener]);
+
+  useEffect(() => {
+    if (activeView !== "screener" || screenerStatus !== "building") return;
+    const timer = window.setTimeout(() => void loadScreener(), 1_800);
+    return () => window.clearTimeout(timer);
+  }, [activeView, loadScreener, screenerStatus, screenerProgress.completed]);
+
   const normalizedCode = normalizeStockCode(code);
   const isStarred = watchlist.includes(normalizedCode);
 
   const runAnalysis = async (requestedCode = normalizedCode) => {
     const target = normalizeStockCode(requestedCode);
+    setActiveView("analysis");
+    setDrawerOpen(false);
     setCode(target);
     setStatus("loading");
     setResult(null);
@@ -361,17 +463,52 @@ export default function Home() {
 
   const ruleCount = useMemo(() => result?.rules.filter((rule) => rule.pass).length ?? 0, [result]);
 
+  const switchView = (view: ViewMode) => {
+    setActiveView(view);
+    setDrawerOpen(false);
+    window.setTimeout(() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" }), 0);
+  };
+
   return (
     <main>
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="台股進場判斷器首頁">
+        <button className="menu-button" type="button" onClick={() => setDrawerOpen(true)} aria-label="開啟功能選單">
+          <Icon name="menu" size={22} />
+        </button>
+        <button className="brand" type="button" onClick={() => switchView("analysis")} aria-label="台股進場判斷器首頁">
           <span className="brand-mark"><Icon name="chart" size={21} /></span>
           <span>進場判斷器</span>
-        </a>
+        </button>
         <span className="market-pill"><i />TWSE 日線</span>
       </header>
 
+      <button className={`drawer-overlay${drawerOpen ? " open" : ""}`} type="button" onClick={() => setDrawerOpen(false)} aria-label="關閉功能選單" />
+      <div className="app-frame">
+        <aside className={`sidebar${drawerOpen ? " open" : ""}`} aria-label="主要功能">
+          <div className="sidebar-mobile-head">
+            <strong>功能選單</strong>
+            <button type="button" onClick={() => setDrawerOpen(false)} aria-label="關閉功能選單"><Icon name="close" size={20} /></button>
+          </div>
+          <nav className="sidebar-nav">
+            <button className={activeView === "analysis" ? "active" : ""} type="button" onClick={() => switchView("analysis")}>
+              <Icon name="home" size={19} /><span><strong>個股進場判斷</strong><small>輸入股票代碼分析</small></span>
+            </button>
+            <button className={activeView === "screener" ? "active" : ""} type="button" onClick={() => switchView("screener")}>
+              <Icon name="radar" size={19} /><span><strong>0050 機會雷達</strong><small>{screenerSnapshot ? `${screenerSnapshot.groups.ready.length} 檔條件已符合` : "掃描 50 檔成分股"}</small></span>
+            </button>
+            <button className={activeView === "guide" ? "active" : ""} type="button" onClick={() => switchView("guide")}>
+              <Icon name="book" size={19} /><span><strong>策略白話說明</strong><small>1：3、停損與股數</small></span>
+            </button>
+          </nav>
+          <div className="sidebar-note">
+            <Icon name="shield" size={18} />
+            <p>先看大盤，再看個股。所有結果僅供研究與風險管理參考。</p>
+          </div>
+        </aside>
+
+        <div className="main-column">
       <div id="top" className="page-shell">
+        {activeView === "analysis" ? <>
         <section className="hero">
           <div className="eyebrow">趨勢 × 回檔 × 轉強 × 風控</div>
           <h1>現在，適合進場嗎？</h1>
@@ -501,7 +638,7 @@ export default function Home() {
               <Metric label="收盤價" value={formatPrice(result.price)} hint={`${result.changePercent >= 0 ? "+" : ""}${result.changePercent.toFixed(2)}%`} />
               <Metric label="MA25" value={formatPrice(result.metrics.ma25)} hint={`距離 ${result.metrics.distanceToMa25Percent >= 0 ? "+" : ""}${result.metrics.distanceToMa25Percent.toFixed(2)}%`} />
               <Metric label="RSI 14" value={result.metrics.rsi14.toFixed(1)} hint={result.metrics.rsi14 >= 70 ? "偏熱" : result.metrics.rsi14 <= 35 ? "低檔" : "中性"} />
-              <Metric label="ATR 14" value={formatPrice(result.metrics.atr14)} hint={`約 ${(result.metrics.atr14 / result.price * 100).toFixed(2)}%`} />
+              <Metric label="ATR 14（日常波動）" value={formatPrice(result.metrics.atr14)} hint={`近 14 日每天通常波動約 ${(result.metrics.atr14 / result.price * 100).toFixed(2)}%`} />
             </section>
 
             <EntryPlanCard result={result} />
@@ -541,20 +678,28 @@ export default function Home() {
                 <Icon name="shield" size={24} />
               </div>
               <div className="risk-levels">
-                <div><span>{result.entryPlan.available ? "建議價估算" : "風險觀察基準"}</span><strong>{formatPrice(result.risk.referenceEntry)}</strong><small>{result.entryPlan.available ? "以優先觀察價計算" : "目前不構成進場建議"}</small></div>
-                <div className="stop"><span>停損</span><strong>{formatPrice(result.risk.stop)}</strong><small>-{result.risk.stopPercent.toFixed(2)}%</small></div>
-                <div className="target"><span>3R 目標</span><strong>{formatPrice(result.risk.target)}</strong><small>風報比 1 : 3</small></div>
+                <div><span className="label-with-tip">{result.entryPlan.available ? "參考進場價" : "風險觀察基準"}<TermTip label="參考進場價">用這個價格試算停損、目標價與股數；實際成交價不同時必須重算。</TermTip></span><strong>{formatPrice(result.risk.referenceEntry)}</strong><small>{result.entryPlan.available ? "以優先觀察價計算" : "目前不構成進場建議"}</small></div>
+                <div className="stop"><span className="label-with-tip">判斷錯誤時的離場價<TermTip label="停損價">跌到這裡代表原先條件可能失效，應依計畫離場；跳空時實際成交可能更低。</TermTip></span><strong>{formatPrice(result.risk.stop)}</strong><small>距參考進場價 -{result.risk.stopPercent.toFixed(2)}%</small></div>
+                <div className="target"><span className="label-with-tip">目標價（賺 3、賠 1）<TermTip label="賺三賠一">每願意承擔 1 元損失，目標爭取 3 元報酬；只是風險規劃，不保證到價。</TermTip></span><strong>{formatPrice(result.risk.target)}</strong><small>每承擔 1 元損失，目標爭取 3 元</small></div>
               </div>
               <div className="position-box">
                 <div>
-                  <span>依資金與大盤係數調整後最多</span>
+                  <span className="label-with-tip">風險計算的股數上限<TermTip label="股數上限">這是依風險算出的最多股數，不代表一定要買滿，也不是買進指令。</TermTip></span>
                   <strong>{result.risk.shares.toLocaleString("zh-TW")} 股</strong>
                   <small>{result.risk.lots} 張 + {result.risk.oddShares} 股</small>
                 </div>
                 <dl>
-                  <div><dt>估計部位</dt><dd>{formatCurrency(result.risk.estimatedPosition)}</dd></div>
-                  <div><dt>含成本風險</dt><dd>{formatCurrency(result.risk.estimatedRisk)}</dd></div>
+                  <div><dt>預計投入金額</dt><dd>{formatCurrency(result.risk.estimatedPosition)}</dd></div>
+                  <div><dt>跌到停損時約損失</dt><dd>{formatCurrency(result.risk.estimatedRisk)}</dd></div>
                 </dl>
+              </div>
+              <div className="risk-example">
+                <strong>用這次數字來看</strong>
+                {result.risk.shares > 0 ? (
+                  <p>若約在 {formatPrice(result.risk.referenceEntry)} 元進場、跌到 {formatPrice(result.risk.stop)} 元離場，最多 {result.risk.shares.toLocaleString("zh-TW")} 股的整筆估計損失約為 {formatCurrency(result.risk.estimatedRisk)}；若順利到 {formatPrice(result.risk.target)} 元，才達到「賺 3、賠 1」的原始目標。</p>
+                ) : (
+                  <p>目前條件不允許建立部位，所以股數上限為 0。參考進場、停損與目標價只用來觀察，不應視為下單指令。</p>
+                )}
               </div>
               <p className="execution-note"><Icon name="alert" size={17} />實際下單前，請用成交價重新計算停損與股數；若開盤跳空超過建議區間、風報比不足或大盤轉弱，應放棄進場。</p>
             </section>
@@ -580,9 +725,87 @@ export default function Home() {
           </div>
         ) : null}
 
-        <section className="method card">
+        </> : null}
+
+        {activeView === "screener" ? (
+          <div className="radar-page">
+            <section className="radar-hero">
+              <div>
+                <span className="eyebrow">0050 成分股每日掃描</span>
+                <h1>今天，哪些股票接近進場條件？</h1>
+                <p>先套用加權指數環境，再逐一檢查 0050 成分股。這是規則篩選結果，不是買進推薦。</p>
+              </div>
+              <button type="button" onClick={() => void loadScreener()} disabled={screenerStatus === "loading"}>
+                {screenerStatus === "loading" ? "讀取中…" : "更新畫面"}
+              </button>
+            </section>
+
+            {screenerStatus === "loading" ? (
+              <section className="loading-card card" aria-live="polite">
+                <div className="loading-top"><span>讀取 0050 最新雷達</span><strong>請稍候</strong></div>
+                <div className="progress-track"><i style={{ width: "42%" }} /></div>
+                <p>資料在伺服器端整理，手機不需要重算 50 檔股票。</p>
+              </section>
+            ) : null}
+
+            {screenerStatus === "building" ? (
+              <section className="loading-card card" aria-live="polite">
+                <div className="loading-top"><span>第一次建立雷達快取</span><strong>{screenerProgress.completed} / {screenerProgress.total}</strong></div>
+                <div className="progress-track"><i style={{ width: `${screenerProgress.completed / screenerProgress.total * 100}%` }} /></div>
+                <p>系統正分批讀取公開日線，會自動繼續；已略過 {screenerProgress.failed} 檔資料異常標的。</p>
+              </section>
+            ) : null}
+
+            {screenerStatus === "error" ? (
+              <section className="error-card card" role="alert">
+                <div className="error-icon"><Icon name="alert" size={24} /></div>
+                <div><h2>雷達暫時無法讀取</h2><p>{screenerError}</p></div>
+                <button type="button" onClick={() => void loadScreener()}>重新嘗試</button>
+              </section>
+            ) : null}
+
+            {screenerStatus === "ready" && screenerSnapshot ? (
+              <div className="radar-results" aria-live="polite">
+                <MarketGate market={screenerSnapshot.market} />
+                <div className="radar-meta">
+                  <span>行情資料至 {screenerSnapshot.dataDate}</span>
+                  <span>已分析 {screenerSnapshot.all.length} / 50 檔</span>
+                  <a href={screenerSnapshot.fund.sourceUrl} rel="noreferrer" target="_blank">成分股來源與日期</a>
+                </div>
+                <div className="radar-groups">
+                  <ScreenerGroup title="策略條件已符合" explanation="大盤允許，個股的趨勢與觸發條件也已成立；仍要核對實際成交價。" items={screenerSnapshot.groups.ready} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
+                  <ScreenerGroup title="接近進場區" explanation="距離回檔參考區 1.5% 以內，等待價格進區並出現轉強。" items={screenerSnapshot.groups.nearEntry} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
+                  <ScreenerGroup title="關鍵突破觀察" explanation="距突破參考價 1.5% 以內，必須搭配成交量且不可追高。" items={screenerSnapshot.groups.nearBreakout} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
+                  <ScreenerGroup title="暫不適合" explanation="大盤、趨勢、過熱、流動性或資料品質未通過；列出來是提醒避開。" items={screenerSnapshot.groups.blocked} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
+                </div>
+
+                <details className="radar-all card">
+                  <summary>查看完整 50 檔篩選結果</summary>
+                  <div className="radar-table" role="table" aria-label="0050 完整篩選結果">
+                    {screenerSnapshot.all.map((item) => (
+                      <button type="button" role="row" key={item.code} onClick={() => void runAnalysis(item.code)}>
+                        <span role="cell"><strong>{item.code}</strong><small>{item.name}</small></span>
+                        <em role="cell" className={`radar-tag radar-${item.category}`}>{item.categoryLabel}</em>
+                        <span role="cell">{formatPrice(item.price)}</span>
+                        <span role="cell">{item.score} 分</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
+
+                <p className="radar-disclaimer">0050 成分股會定期調整；本頁依標示日期的清單與收盤資料篩選。分類只表示規則是否符合，不代表未來一定上漲，也不構成買進推薦。</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {activeView === "guide" ? <section className="method guide-page card">
           <div className="section-heading">
-            <div><span>策略說明</span><h2>改良後的進場邏輯</h2></div>
+            <div><span>策略白話說明</span><h2>看懂每個數字，才決定要不要交易</h2></div>
+          </div>
+          <div className="plain-guide-intro">
+            <h3>先用一句話理解</h3>
+            <p>這套方法先確認台股大盤是否適合做多，再找趨勢向上的股票，等待好價格與轉強訊號，最後先算好「判斷錯了最多損失多少」。</p>
           </div>
           <div className="method-grid">
             <article><b>01</b><h3>大盤先行</h3><p>加權指數三項條件決定全額、半額或停止新的多方進場。</p></article>
@@ -592,10 +815,18 @@ export default function Home() {
             <article><b>05</b><h3>費波那契定位</h3><p>用回檔位找支撐區、用擴展位規劃突破後目標，但不單獨作為買點。</p></article>
             <article><b>06</b><h3>部位由風險決定</h3><p>以 ATR 與近期低點設停損，再乘上大盤允許的部位係數。</p></article>
           </div>
+          <div className="glossary-grid">
+            <article><h3>目標價（賺 3、賠 1）</h3><p>如果進場到停損的距離是 5 元，目標就先抓 15 元。意思是每願意承擔 1 元損失，爭取 3 元報酬；它是規劃，不是保證。</p></article>
+            <article><h3>停損價</h3><p>代表「原本的判斷可能錯了」時預先離場的價格。實際成交可能因跳空或滑價低於這個價位。</p></article>
+            <article><h3>最多股數</h3><p>依你的資金、單筆可承擔損失、單檔上限及大盤係數算出的風險上限，不是叫你一定要買滿。</p></article>
+            <article><h3>跌到停損時約損失</h3><p>股數乘上每股風險，並估入買賣手續費與交易稅。這仍是估算，跳空與滑價會讓實際損失更高。</p></article>
+            <article><h3>ATR 14</h3><p>最近 14 個交易日每天通常波動多少。ATR 越大，代表價格晃動較大，停損通常也要留得更寬。</p></article>
+            <article><h3>條件符合度</h3><p>六項規則的加權分數，用來確認策略條件，不是上漲機率，也不是勝率。</p></article>
+          </div>
           <p className="disclaimer">免責聲明：本工具依公開歷史資料進行規則化研究與風險管理試算，所有訊號、建議區間、停損、目標價及股數均非個別投資建議、證券推薦、招攬、報酬保證或自動下單服務。資料可能延遲、遺漏或因除權息與市場事件失真；使用者應自行查證並承擔交易決策及損益。</p>
-        </section>
+        </section> : null}
 
-        {history.length ? (
+        {activeView === "analysis" && history.length ? (
           <section className="history card">
             <div className="section-heading"><div><span>本機紀錄</span><h2>最近分析</h2></div></div>
             <div className="history-list">
@@ -620,6 +851,8 @@ export default function Home() {
         </span>
         <span className="footer-links"><a href="./privacy/">隱私權政策</a><i />僅支援上市股票與 ETF・日線收盤後更新</span>
       </footer>
+        </div>
+      </div>
     </main>
   );
 }
