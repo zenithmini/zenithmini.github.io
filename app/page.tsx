@@ -26,7 +26,35 @@ const DEFAULT_SETTINGS: StrategySettings = {
 type HistoryItem = Pick<
   AnalysisResult,
   "code" | "name" | "dataDate" | "verdict" | "verdictKey" | "price" | "score"
->;
+> & { checkedAt?: string };
+
+type HistoryRefreshState = {
+  running: boolean;
+  completed: number;
+  total: number;
+  failed: number;
+};
+
+const expectedLatestTradingDate = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value || 0);
+  const date = new Date(Date.UTC(value("year"), value("month") - 1, value("day")));
+  if (value("hour") < 18) date.setUTCDate(date.getUTCDate() - 1);
+  while (date.getUTCDay() === 0 || date.getUTCDay() === 6) date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+};
+
+const formatHistoryDate = (value: string) => {
+  const [, month = "", day = ""] = value.split("-");
+  return month && day ? `${Number(month)}/${Number(day)}` : value;
+};
 
 const formatPrice = (value: number) =>
   new Intl.NumberFormat("zh-TW", {
@@ -37,7 +65,7 @@ const formatPrice = (value: number) =>
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("zh-TW", { style: "currency", currency: "TWD", maximumFractionDigits: 0 }).format(value);
 
-type IconName = "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock" | "menu" | "close" | "home" | "radar" | "book" | "info";
+type IconName = "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock" | "menu" | "close" | "home" | "radar" | "book" | "info" | "refresh";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<typeof name, ReactNode> = {
@@ -54,6 +82,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     radar: <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 12 18 6"/><path d="M12 2v2"/><path d="M22 12h-2"/></>,
     book: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22Z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22Z"/></>,
     info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7h.01"/></>,
+    refresh: <><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.2 9A7 7 0 0 0 6.1 6.4L4 8"/><path d="M5.8 15A7 7 0 0 0 17.9 17.6L20 16"/></>,
   };
   return (
     <svg aria-hidden="true" className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -364,6 +393,12 @@ export default function Home() {
   const [loadingStage, setLoadingStage] = useState("先判斷台股大盤");
   const [watchlist, setWatchlist] = useState<string[]>(["0050", "2330"]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyRefresh, setHistoryRefresh] = useState<HistoryRefreshState>({
+    running: false,
+    completed: 0,
+    total: 0,
+    failed: 0,
+  });
   const [usingCache, setUsingCache] = useState(false);
   const [activeView, setActiveView] = useState<ViewMode>("analysis");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -466,6 +501,7 @@ export default function Home() {
           verdictKey: nextResult.verdictKey,
           price: nextResult.price,
           score: nextResult.score,
+          checkedAt: new Date().toISOString(),
         },
         ...history.filter((item) => item.code !== target),
       ].slice(0, 20);
@@ -512,7 +548,59 @@ export default function Home() {
     localStorage.setItem("tw-signal-settings", JSON.stringify(next));
   };
 
+  const refreshAllHistory = async () => {
+    if (!history.length || historyRefresh.running) return;
+    const original = [...history];
+    const refreshed = [...original];
+    let completed = 0;
+    let failed = 0;
+    setHistoryRefresh({ running: true, completed: 0, total: original.length, failed: 0 });
+
+    for (let start = 0; start < original.length; start += 2) {
+      const batch = original.slice(start, start + 2);
+      const batchResults = await Promise.all(
+        batch.map(async (item) => {
+          try {
+            const payload = await fetchStockAnalysis(item.code);
+            if (!payload.result) throw new Error("資料期間不足");
+            localStorage.setItem(
+              `tw-signal-cache-v4-${item.code}`,
+              JSON.stringify({ savedAt: Date.now(), payload }),
+            );
+            return {
+              ok: true as const,
+              item: {
+                code: payload.result.code,
+                name: payload.result.name,
+                dataDate: payload.result.dataDate,
+                verdict: payload.result.verdict,
+                verdictKey: payload.result.verdictKey,
+                price: payload.result.price,
+                score: payload.result.score,
+                checkedAt: new Date().toISOString(),
+              } satisfies HistoryItem,
+            };
+          } catch {
+            return { ok: false as const, item };
+          }
+        }),
+      );
+
+      batchResults.forEach((batchResult, offset) => {
+        refreshed[start + offset] = batchResult.item;
+        if (!batchResult.ok) failed += 1;
+      });
+      completed += batch.length;
+      setHistory([...refreshed]);
+      setHistoryRefresh({ running: true, completed, total: original.length, failed });
+    }
+
+    localStorage.setItem("tw-signal-history", JSON.stringify(refreshed));
+    setHistoryRefresh({ running: false, completed, total: original.length, failed });
+  };
+
   const ruleCount = useMemo(() => result?.rules.filter((rule) => rule.pass).length ?? 0, [result]);
+  const expectedDataDate = expectedLatestTradingDate();
 
   const switchView = (view: ViewMode) => {
     setActiveView(view);
@@ -887,16 +975,43 @@ export default function Home() {
           <section className="history card">
             <div className="section-heading">
               <div><span>本機紀錄</span><h2>最近分析</h2></div>
-              <small>{history.length} 筆・最多保留 20 筆</small>
-            </div>
-            <div className="history-list">
-              {history.map((item) => (
-                <button type="button" key={`${item.code}-${item.dataDate}`} onClick={() => void runAnalysis(item.code)}>
-                  <span><b>{item.code}</b>{item.name}</span>
-                  <em className={`history-${item.verdictKey}`}>{item.verdict}</em>
-                  <small>{item.dataDate}</small>
+              <div className="history-actions">
+                <small>{history.length} 筆・最多保留 20 筆</small>
+                <button type="button" onClick={() => void refreshAllHistory()} disabled={historyRefresh.running}>
+                  <Icon name="refresh" size={14} />
+                  {historyRefresh.running ? `${historyRefresh.completed}/${historyRefresh.total}` : "更新全部"}
                 </button>
-              ))}
+              </div>
+            </div>
+            <p className={`history-update-note ${historyRefresh.failed ? "has-error" : ""}`}>
+              {historyRefresh.running
+                ? `正在分批重新分析，已完成 ${historyRefresh.completed}／${historyRefresh.total} 筆，請先不要關閉頁面。`
+                : historyRefresh.total
+                  ? historyRefresh.failed
+                    ? `更新完成；${historyRefresh.failed} 筆連線失敗，暫時保留原紀錄。`
+                    : "全部紀錄已使用最新可取得的日線重新分析。"
+                  : "右側訊號是上次分析結果，不會自動改變；資料日期較舊時會提示更新。"}
+            </p>
+            <div className="history-list">
+              {history.map((item) => {
+                const needsRefresh = item.dataDate < expectedDataDate;
+                return (
+                  <button
+                    type="button"
+                    key={item.code}
+                    onClick={() => void runAnalysis(item.code)}
+                    disabled={historyRefresh.running}
+                    title={`資料日期 ${item.dataDate}；點選可重新分析`}
+                  >
+                    <span className="history-stock"><b>{item.code}</b>{item.name}</span>
+                    <em className={`history-${item.verdictKey}`}>{item.verdict}</em>
+                    <span className={`history-date ${needsRefresh ? "is-stale" : ""}`}>
+                      <small>資料日 {formatHistoryDate(item.dataDate)}</small>
+                      {needsRefresh ? <i>可能需更新</i> : null}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </section>
         ) : null}
