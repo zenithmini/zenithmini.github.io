@@ -139,6 +139,72 @@ export type AnalysisPayload = {
   };
 };
 
+export type ScreenerCategory = "ready" | "near-entry" | "near-breakout" | "watch" | "blocked";
+
+export type ScreenerItem = {
+  code: string;
+  name: string;
+  dataDate: string;
+  price: number;
+  changePercent: number;
+  score: number;
+  verdict: AnalysisResult["verdict"];
+  verdictKey: AnalysisResult["verdictKey"];
+  category: ScreenerCategory;
+  categoryLabel: string;
+  reason: string;
+  entry: {
+    state: AnalysisResult["entryPlan"]["state"];
+    zoneLow: number | null;
+    zoneHigh: number | null;
+    preferred: number | null;
+    breakout: number | null;
+    distancePercent: number | null;
+  };
+  risk: {
+    stop: number;
+    target: number;
+    rewardRiskRatio: number;
+  };
+};
+
+export type ScreenerSnapshot = {
+  status: "ready";
+  fund: {
+    code: "0050";
+    name: "元大台灣50";
+    constituentDate: string;
+    sourceUrl: string;
+  };
+  generatedAt: string;
+  dataDate: string;
+  market: MarketRegime;
+  groups: {
+    ready: ScreenerItem[];
+    nearEntry: ScreenerItem[];
+    nearBreakout: ScreenerItem[];
+    watch: ScreenerItem[];
+    blocked: ScreenerItem[];
+  };
+  all: ScreenerItem[];
+  failed: Array<{ code: string; message: string }>;
+};
+
+export type ScreenerPayload =
+  | { status: "ready"; snapshot: ScreenerSnapshot }
+  | {
+      status: "building";
+      generatedAt: string;
+      progress: { completed: number; total: number; failed: number };
+      message: string;
+    };
+
+const signalApiBaseUrl = () =>
+  (
+    process.env.NEXT_PUBLIC_SIGNAL_API_URL ||
+    "https://tw-stock-signal-api.market-signal-tools.workers.dev"
+  ).replace(/\/+$/, "");
+
 export const normalizeStockCode = (value: string) =>
   value.trim().toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 6);
 
@@ -187,10 +253,7 @@ export const applyPositionSizing = (
 };
 
 export async function fetchStockAnalysis(code: string): Promise<AnalysisPayload> {
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_SIGNAL_API_URL ||
-    "https://tw-stock-signal-api.market-signal-tools.workers.dev"
-  ).replace(/\/+$/, "");
+  const baseUrl = signalApiBaseUrl();
 
   const normalizedCode = normalizeStockCode(code);
   if (!isSupportedStockCode(normalizedCode)) {
@@ -218,6 +281,33 @@ export async function fetchStockAnalysis(code: string): Promise<AnalysisPayload>
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("分析超過 30 秒，請稍後重新嘗試。");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+export async function fetchTaiwan50Screener(): Promise<ScreenerPayload> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 60_000);
+  try {
+    const response = await fetch(`${signalApiBaseUrl()}/api/screener/0050`, {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const payload = (await response.json().catch(() => null)) as ScreenerPayload | { error?: string } | null;
+    if (!response.ok && response.status !== 202) {
+      throw new Error(payload && "error" in payload && payload.error ? payload.error : "0050 雷達暫時無法使用。");
+    }
+    if (!payload || !("status" in payload) || !["ready", "building"].includes(payload.status)) {
+      throw new Error("0050 雷達回傳的資料格式不正確。");
+    }
+    return payload as ScreenerPayload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("0050 雷達更新超過 60 秒，請稍後重新整理。");
     }
     throw error;
   } finally {
