@@ -41,11 +41,21 @@ test("PWA shell is included in the static export", async () => {
 test("AdSense publisher metadata and auto ads loader are included", async () => {
   const html = await readFile(resolve(output, "index.html"), "utf8");
   const ads = await readFile(resolve(output, "ads.txt"), "utf8");
+  const assetFiles = [...html.matchAll(/\.\/assets\/[^"'\\)]+\.js/g)].map((match) =>
+    resolve(output, match[0].slice(2)),
+  );
+  const scripts = await Promise.all(assetFiles.map((file) => readFile(file, "utf8")));
+  const bundle = scripts.join("\n");
 
   assert.match(html, /google-adsense-account/);
   assert.match(html, /ca-pub-6042352419761579/);
   assert.match(html, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
   assert.match(ads, /pub-6042352419761579/);
+  assert.match(html, /5040756419/);
+  for (const slot of ["9369999183", "5040756419", "3727674747", "6743835843"]) {
+    assert.match(bundle, new RegExp(slot), `expected AdSense slot ${slot} in client bundle`);
+  }
+  assert.match(bundle, /data-ad-status/);
   assert.doesNotMatch(html, /廣告預留區/);
 });
 
