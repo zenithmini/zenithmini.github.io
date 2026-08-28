@@ -1,7 +1,7 @@
 {
   "name": "台股進場判斷器",
   "short_name": "進場判斷",
-  "description": "上市股票與 ETF 的趨勢、回檔、轉強與風險分析工具。",
+  "description": "上市／上櫃股票與 ETF 的趨勢、回檔、轉強與風險分析工具。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
