@@ -618,7 +618,7 @@ export default function Home() {
           <span className="brand-mark"><Icon name="chart" size={21} /></span>
           <span>進場判斷器</span>
         </button>
-        <span className="market-pill"><i />TWSE 日線</span>
+        <span className="market-pill"><i />TWSE＋TPEx 日線</span>
       </header>
 
       <button className={`drawer-overlay${drawerOpen ? " open" : ""}`} type="button" onClick={() => setDrawerOpen(false)} aria-label="關閉功能選單" />
@@ -651,7 +651,7 @@ export default function Home() {
         <section className="hero">
           <div className="eyebrow">趨勢 × 回檔 × 轉強 × 風控</div>
           <h1>現在，適合進場嗎？</h1>
-          <p>輸入上市股票或 ETF 代碼，由安全分析服務檢查建議入場區間、停損、目標價與可承擔部位。</p>
+          <p>輸入上市／上櫃股票或 ETF 代碼，由安全分析服務檢查建議入場區間、停損、目標價與可承擔部位。</p>
 
           <form className="search-panel" onSubmit={submit}>
             <div className="search-field">
@@ -663,7 +663,7 @@ export default function Home() {
                 inputMode="text"
                 maxLength={6}
                 onChange={(event) => setCode(normalizeStockCode(event.target.value))}
-                placeholder="例如 0050、2330、00403A"
+                placeholder="例如 0050、2330、3374、00403A"
                 spellCheck={false}
                 value={code}
               />
@@ -1024,9 +1024,10 @@ export default function Home() {
         <span>
           資料來源：
           <a href="https://data.gov.tw/dataset/11549" rel="noreferrer" target="_blank">臺灣證券交易所股份有限公司「個股日成交資訊」</a>
-          ・依政府資料開放授權條款第 1 版利用
+          、<a href="https://www.tpex.org.tw/zh-tw/openapi.html" rel="noreferrer" target="_blank">證券櫃檯買賣中心公開資料</a>
+          ・依各來源開放資料規範利用
         </span>
-        <span className="footer-links"><a href="./privacy/">隱私權政策</a><i />僅支援上市股票與 ETF・日線收盤後更新</span>
+        <span className="footer-links"><a href="./privacy/">隱私權政策</a><i />支援上市／上櫃股票與 ETF・日線收盤後更新</span>
       </footer>
         </div>
       </div>
