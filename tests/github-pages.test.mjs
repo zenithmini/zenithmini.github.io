@@ -85,6 +85,9 @@ test("public build calls the private analysis API without shipping market-data o
   assert.match(bundle, /虛擬賣出/);
   assert.match(bundle, /保存本輪並重設/);
   assert.match(bundle, /不保存直接重設/);
+  assert.match(bundle, /繼續清除/);
+  assert.match(bundle, /確定永久清除/);
+  assert.match(bundle, /removeItem\([`"']tw-signal-paper-challenges/);
   assert.match(bundle, /分鐘前/);
   assert.doesNotMatch(bundle, /盤中即時股價/);
   assert.match(bundle, /跑贏0050/);
