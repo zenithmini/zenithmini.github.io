@@ -92,6 +92,14 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 }
 
 type ViewMode = "analysis" | "screener" | "guide";
+type FontSize = "small" | "standard" | "large" | "extra-large";
+
+const FONT_SIZE_OPTIONS: Array<{ value: FontSize; label: string }> = [
+  { value: "small", label: "小" },
+  { value: "standard", label: "標準" },
+  { value: "large", label: "大" },
+  { value: "extra-large", label: "特大" },
+];
 
 function TermTip({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -401,6 +409,7 @@ export default function Home() {
   });
   const [usingCache, setUsingCache] = useState(false);
   const [activeView, setActiveView] = useState<ViewMode>("analysis");
+  const [fontSize, setFontSize] = useState<FontSize>("standard");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [screenerStatus, setScreenerStatus] = useState<"loading" | "building" | "ready" | "error">("loading");
   const [screenerSnapshot, setScreenerSnapshot] = useState<ScreenerSnapshot | null>(null);
@@ -431,9 +440,13 @@ export default function Home() {
         const savedSettings = localStorage.getItem("tw-signal-settings");
         const savedWatchlist = localStorage.getItem("tw-signal-watchlist");
         const savedHistory = localStorage.getItem("tw-signal-history");
+        const savedFontSize = localStorage.getItem("tw-signal-font-size") as FontSize | null;
         if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
         if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
         if (savedHistory) setHistory(JSON.parse(savedHistory));
+        if (savedFontSize && FONT_SIZE_OPTIONS.some((option) => option.value === savedFontSize)) {
+          setFontSize(savedFontSize);
+        }
       } catch {
         // Ignore malformed browser storage and keep safe defaults.
       }
@@ -608,6 +621,12 @@ export default function Home() {
     window.setTimeout(() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" }), 0);
   };
 
+  const updateFontSize = (next: FontSize) => {
+    setFontSize(next);
+    document.documentElement.setAttribute("data-font-size", next);
+    localStorage.setItem("tw-signal-font-size", next);
+  };
+
   return (
     <main>
       <header className="topbar">
@@ -639,6 +658,25 @@ export default function Home() {
               <Icon name="book" size={19} /><span><strong>策略白話說明</strong><small>1：3、停損與股數</small></span>
             </button>
           </nav>
+          <section className="font-size-setting" aria-labelledby="font-size-setting-label">
+            <div>
+              <strong id="font-size-setting-label">字體大小</strong>
+              <small>這台裝置會記住設定</small>
+            </div>
+            <div className="font-size-options" role="group" aria-label="選擇網站字體大小">
+              {FONT_SIZE_OPTIONS.map((option) => (
+                <button
+                  className={fontSize === option.value ? "active" : ""}
+                  key={option.value}
+                  type="button"
+                  aria-pressed={fontSize === option.value}
+                  onClick={() => updateFontSize(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </section>
           <div className="sidebar-note">
             <Icon name="shield" size={18} />
             <p>先看大盤，再看個股。所有結果僅供研究與風險管理參考。</p>

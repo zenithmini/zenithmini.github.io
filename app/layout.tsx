@@ -21,8 +21,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-Hant">
+    <html lang="zh-Hant" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var value=localStorage.getItem("tw-signal-font-size");if(["small","standard","large","extra-large"].includes(value)){document.documentElement.dataset.fontSize=value}}catch(e){}})();`,
+          }}
+        />
         <script
           async
           crossOrigin="anonymous"
