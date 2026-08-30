@@ -30,7 +30,7 @@ export default function PrivacyPage() {
 
         <section className="card">
           <h2>三、儲存在使用者裝置上的資料</h2>
-          <p>為了保留自選股、資金與風險設定、字體大小、最近分析紀錄、策略歷史回測紀錄、虛擬交易帳戶與短期市場快取，本網站會使用瀏覽器的 localStorage 與 Service Worker 快取。這些資料主要保存在使用者自己的裝置，可透過清除網站資料或瀏覽器快取移除。</p>
+          <p>為了保留自選股、資金與風險設定、字體大小、最近分析紀錄、策略歷史回測紀錄、虛擬交易帳戶、使用者選擇保存的歷次挑戰紀錄與短期市場快取，本網站會使用瀏覽器的 localStorage 與 Service Worker 快取。這些資料主要保存在使用者自己的裝置，可透過清除網站資料或瀏覽器快取移除。</p>
         </section>
 
         <section className="card">
