@@ -71,6 +71,8 @@ test("public build calls the private analysis API without shipping market-data o
   assert.match(bundle, /\/api\/screener\/0050/);
   assert.match(bundle, /更新全部/);
   assert.match(bundle, /可能需更新/);
+  assert.match(bundle, /tw-signal-font-size/);
+  assert.match(bundle, /字體大小/);
   assert.match(bundle, /TWSE＋TPEx 日線/);
   assert.match(bundle, /3374/);
   assert.match(bundle, /tw-stock-signal-api\.market-signal-tools\.workers\.dev/);
