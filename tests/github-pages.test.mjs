@@ -73,10 +73,13 @@ test("public build calls the private analysis API without shipping market-data o
   assert.match(bundle, /可能需更新/);
   assert.match(bundle, /tw-signal-font-size/);
   assert.match(bundle, /字體大小/);
+  assert.match(bundle, /\/api\/simulator\/backtest/);
+  assert.match(bundle, /策略模擬場/);
+  assert.match(bundle, /跑贏0050/);
   assert.match(bundle, /TWSE＋TPEx 日線/);
   assert.match(bundle, /3374/);
   assert.match(bundle, /tw-stock-signal-api\.market-signal-tools\.workers\.dev/);
-  assert.doesNotMatch(bundle, /www\.twse\.com\.tw/);
+  assert.doesNotMatch(bundle, /www\.twse\.com\.tw\/(?:exchangeReport|rwd)\//);
   assert.doesNotMatch(bundle, /api\.finmindtrade\.com/);
   assert.doesNotMatch(bundle, /STOCK_DAY|MI_5MINS_HIST|analyzeMarketRegime|analyzeFibonacci/);
 });

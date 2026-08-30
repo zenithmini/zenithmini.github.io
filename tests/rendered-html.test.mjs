@@ -34,5 +34,6 @@ test("production output omits development preview metadata", async () => {
   assert.match(html, /現在，適合進場嗎？/);
   assert.match(html, /0050 機會雷達/);
   assert.match(html, /策略白話說明/);
+  assert.match(html, /策略模擬場/);
   assert.match(html, /上市／上櫃/);
 });
