@@ -115,8 +115,24 @@ type PaperPosition = { code: string; name: string; shares: number; averageCost: 
 type PaperTrade = { id: string; side: "buy" | "sell"; code: string; name: string; shares: number; price: number; fee: number; tax: number; total: number; dataDate: string; createdAt: string };
 type PaperAccount = { initialCapital: number; cash: number; positions: PaperPosition[]; trades: PaperTrade[] };
 type PaperQuote = Pick<AnalysisResult, "code" | "name" | "price" | "dataDate"> & Partial<Pick<AnalysisResult, "verdict" | "verdictKey">>;
+type PaperChallengeRecord = { id: string; savedAt: string; initialCapital: number; finalAssets: number; profit: number; returnPercent: number; tradeCount: number; positionCount: number };
 
 const DEFAULT_PAPER_ACCOUNT: PaperAccount = { initialCapital: 1_000_000, cash: 1_000_000, positions: [], trades: [] };
+
+const formatRelativeTime = (value: string, now: number) => {
+  const seconds = Math.max(0, Math.floor((now - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return "剛剛";
+  if (seconds < 3_600) return `${Math.floor(seconds / 60)}分鐘前`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}小時前`;
+  if (seconds < 172_800) return "昨天";
+  if (seconds < 2_592_000) return `${Math.floor(seconds / 86_400)}天前`;
+  if (seconds < 31_536_000) return `${Math.floor(seconds / 2_592_000)}個月前`;
+  return `${Math.floor(seconds / 31_536_000)}年前`;
+};
+
+const formatChallengeTime = (value: string) => new Intl.DateTimeFormat("zh-TW", {
+  timeZone: "Asia/Taipei", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
+}).format(new Date(value));
 
 function TermTip({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -475,6 +491,9 @@ export default function Home() {
   const [paperStatus, setPaperStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [paperMessage, setPaperMessage] = useState("");
   const [paperRefreshing, setPaperRefreshing] = useState(false);
+  const [paperChallenges, setPaperChallenges] = useState<PaperChallengeRecord[]>([]);
+  const [showPaperRestart, setShowPaperRestart] = useState(false);
+  const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
 
   const loadScreener = useCallback(async () => {
     setScreenerStatus((current) => current === "building" ? "building" : "loading");
@@ -503,6 +522,7 @@ export default function Home() {
         const savedFontSize = localStorage.getItem("tw-signal-font-size") as FontSize | null;
         const savedBacktests = localStorage.getItem("tw-signal-backtests");
         const savedPaperAccount = localStorage.getItem("tw-signal-paper-account");
+        const savedPaperChallenges = localStorage.getItem("tw-signal-paper-challenges");
         if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
         if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
         if (savedHistory) setHistory(JSON.parse(savedHistory));
@@ -511,6 +531,7 @@ export default function Home() {
         }
         if (savedBacktests) setBacktestHistory(JSON.parse(savedBacktests));
         if (savedPaperAccount) setPaperAccount({ ...DEFAULT_PAPER_ACCOUNT, ...JSON.parse(savedPaperAccount) });
+        if (savedPaperChallenges) setPaperChallenges(JSON.parse(savedPaperChallenges));
       } catch {
         // Ignore malformed browser storage and keep safe defaults.
       }
@@ -526,6 +547,11 @@ export default function Home() {
       window.clearTimeout(restoreTimer);
       window.removeEventListener("load", registerServiceWorker);
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setRelativeTimeNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -817,6 +843,36 @@ export default function Home() {
   const paperMarketValue = useMemo(() => paperAccount.positions.reduce((total, position) => total + position.shares * position.lastPrice, 0), [paperAccount.positions]);
   const paperTotalAssets = paperAccount.cash + paperMarketValue;
   const paperProfit = paperTotalAssets - paperAccount.initialCapital;
+  const paperHasActivity = paperAccount.trades.length > 0 || paperAccount.positions.length > 0;
+
+  const restartPaperChallenge = (saveCurrent: boolean) => {
+    const savedAt = new Date().toISOString();
+    if (saveCurrent && paperHasActivity) {
+      const record: PaperChallengeRecord = {
+        id: `${Date.now()}-challenge`,
+        savedAt,
+        initialCapital: paperAccount.initialCapital,
+        finalAssets: paperTotalAssets,
+        profit: paperProfit,
+        returnPercent: paperProfit / paperAccount.initialCapital * 100,
+        tradeCount: paperAccount.trades.length,
+        positionCount: paperAccount.positions.length,
+      };
+      const nextChallenges = [record, ...paperChallenges].slice(0, 20);
+      setPaperChallenges(nextChallenges);
+      localStorage.setItem("tw-signal-paper-challenges", JSON.stringify(nextChallenges));
+    }
+    const resetAccount: PaperAccount = { ...DEFAULT_PAPER_ACCOUNT, positions: [], trades: [] };
+    savePaperAccount(resetAccount);
+    setPaperQuote(null);
+    setPaperStatus("idle");
+    setPaperCode("0050");
+    setPaperSide("buy");
+    setPaperShares(1000);
+    setShowPaperRestart(false);
+    setRelativeTimeNow(Date.now());
+    setPaperMessage(saveCurrent && paperHasActivity ? "上一輪挑戰已保存，新的100萬元虛擬帳戶已開始。" : "已開始新的100萬元虛擬挑戰。");
+  };
 
   const ruleCount = useMemo(() => result?.rules.filter((rule) => rule.pass).length ?? 0, [result]);
   const expectedDataDate = expectedLatestTradingDate();
@@ -1203,8 +1259,19 @@ export default function Home() {
           <div className="paper-market-page">
             <section className="paper-market-hero">
               <div><span className="eyebrow">紙上交易 × 上市上櫃市場</span><h1>虛擬交易市場</h1><p>用100萬元虛擬資金練習買賣、建立持股並追蹤損益。成交基準採最新盤後收盤價，不會連到券商，也不會動用真實資金。</p></div>
-              <button type="button" onClick={() => void refreshPaperPositions()} disabled={paperRefreshing || !paperAccount.positions.length}><Icon name="refresh" size={17} />{paperRefreshing ? "更新中…" : "更新持股價格"}</button>
+              <div className="paper-market-actions">
+                <button type="button" onClick={() => void refreshPaperPositions()} disabled={paperRefreshing || !paperAccount.positions.length}><Icon name="refresh" size={17} />{paperRefreshing ? "更新中…" : "更新持股價格"}</button>
+                <button className="paper-restart-button" type="button" onClick={() => setShowPaperRestart(true)}><Icon name="clock" size={17} />重新挑戰</button>
+              </div>
             </section>
+            {showPaperRestart ? (
+              <section className="paper-restart-panel card" role="dialog" aria-labelledby="paper-restart-title">
+                <div><span>本輪結果</span><h2 id="paper-restart-title">要保存這次挑戰嗎？</h2><p>重新開始後，虛擬現金會恢復為100萬元，目前持股及成交紀錄會清空。</p></div>
+                <dl><div><dt>目前總資產</dt><dd>{formatCurrency(paperTotalAssets)}</dd></div><div><dt>本輪報酬</dt><dd className={paperProfit >= 0 ? "price-up" : "price-down"}>{paperProfit >= 0 ? "+" : ""}{(paperProfit / paperAccount.initialCapital * 100).toFixed(2)}%</dd></div><div><dt>交易筆數</dt><dd>{paperAccount.trades.length} 筆</dd></div></dl>
+                <div className="paper-restart-actions"><button type="button" onClick={() => restartPaperChallenge(true)} disabled={!paperHasActivity}>保存本輪並重設</button><button className="discard" type="button" onClick={() => restartPaperChallenge(false)}>不保存直接重設</button><button className="cancel" type="button" onClick={() => setShowPaperRestart(false)}>取消</button></div>
+                {!paperHasActivity ? <small>這一輪還沒有交易，因此不需要保存；仍可直接重新開始。</small> : null}
+              </section>
+            ) : null}
             <section className="paper-account-summary card">
               <div><span>虛擬總資產</span><strong>{formatCurrency(paperTotalAssets)}</strong><small>初始 {formatCurrency(paperAccount.initialCapital)}</small></div>
               <div><span>可用現金</span><strong>{formatCurrency(paperAccount.cash)}</strong><small>尚未投入的虛擬資金</small></div>
@@ -1235,6 +1302,12 @@ export default function Home() {
               <div className="section-heading"><div><span>虛擬成交紀錄</span><h2>最近100筆交易</h2></div><small>只保存在這台裝置</small></div>
               {paperAccount.trades.length ? <div className="paper-trade-list">{paperAccount.trades.map((trade) => <article key={trade.id}><em className={trade.side}>{trade.side === "buy" ? "買進" : "賣出"}</em><div><strong>{trade.code}</strong><small>{trade.name}</small></div><div><span>{trade.shares.toLocaleString("zh-TW")} 股 × {formatPrice(trade.price)}</span><small>{trade.dataDate} 收盤價成交</small></div><strong>{formatCurrency(trade.total)}</strong></article>)}</div> : <p className="paper-empty">完成第一筆虛擬買進後，成交紀錄會出現在這裡。</p>}
             </section>
+            {paperChallenges.length ? (
+              <section className="paper-challenges card">
+                <div className="section-heading"><div><span>歷次挑戰</span><h2>已保存的上一輪紀錄</h2></div><small>最多保留20輪</small></div>
+                <div className="paper-challenge-list">{paperChallenges.map((challenge, index) => <article key={challenge.id}><b>第 {paperChallenges.length - index} 輪</b><div><strong>{formatCurrency(challenge.finalAssets)}</strong><small>最終總資產</small></div><div><strong className={challenge.profit >= 0 ? "price-up" : "price-down"}>{challenge.profit >= 0 ? "+" : ""}{challenge.returnPercent.toFixed(2)}%</strong><small>{challenge.tradeCount} 筆交易・{challenge.positionCount} 檔持股</small></div><time dateTime={challenge.savedAt}><strong>{formatRelativeTime(challenge.savedAt, relativeTimeNow)}</strong><small>{formatChallengeTime(challenge.savedAt)}</small></time></article>)}</div>
+              </section>
+            ) : null}
           </div>
         ) : null}
 
