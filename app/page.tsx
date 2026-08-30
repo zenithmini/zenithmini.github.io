@@ -67,7 +67,7 @@ const formatPrice = (value: number) =>
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("zh-TW", { style: "currency", currency: "TWD", maximumFractionDigits: 0 }).format(value);
 
-type IconName = "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock" | "menu" | "close" | "home" | "radar" | "simulator" | "book" | "info" | "refresh";
+type IconName = "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock" | "menu" | "close" | "home" | "radar" | "simulator" | "trade" | "book" | "info" | "refresh";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<typeof name, ReactNode> = {
@@ -83,6 +83,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></>,
     radar: <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 12 18 6"/><path d="M12 2v2"/><path d="M22 12h-2"/></>,
     simulator: <><path d="M8 3h8"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M8 15h8"/></>,
+    trade: <><path d="M4 7h16v12H4Z"/><path d="M7 7V5h10v2"/><path d="M4 11h16"/><path d="M8 15h3"/></>,
     book: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22Z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22Z"/></>,
     info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7h.01"/></>,
     refresh: <><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.2 9A7 7 0 0 0 6.1 6.4L4 8"/><path d="M5.8 15A7 7 0 0 0 17.9 17.6L20 16"/></>,
@@ -94,7 +95,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   );
 }
 
-type ViewMode = "analysis" | "screener" | "simulator" | "guide";
+type ViewMode = "analysis" | "screener" | "paper" | "simulator" | "guide";
 type FontSize = "small" | "standard" | "large" | "extra-large";
 
 const FONT_SIZE_OPTIONS: Array<{ value: FontSize; label: string }> = [
@@ -109,6 +110,13 @@ type BacktestHistoryItem = {
   periodDays: number;
   savedAt: string;
 };
+
+type PaperPosition = { code: string; name: string; shares: number; averageCost: number; lastPrice: number; dataDate: string };
+type PaperTrade = { id: string; side: "buy" | "sell"; code: string; name: string; shares: number; price: number; fee: number; tax: number; total: number; dataDate: string; createdAt: string };
+type PaperAccount = { initialCapital: number; cash: number; positions: PaperPosition[]; trades: PaperTrade[] };
+type PaperQuote = Pick<AnalysisResult, "code" | "name" | "price" | "dataDate"> & Partial<Pick<AnalysisResult, "verdict" | "verdictKey">>;
+
+const DEFAULT_PAPER_ACCOUNT: PaperAccount = { initialCapital: 1_000_000, cash: 1_000_000, positions: [], trades: [] };
 
 function TermTip({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -415,7 +423,7 @@ function BacktestChart({ result }: { result: BacktestResult }) {
   const points = values.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
   const baselineY = y(result.initialCapital);
   return (
-    <div className="backtest-chart" role="img" aria-label={`${result.code} 策略模擬資產曲線`}>
+    <div className="backtest-chart" role="img" aria-label={`${result.code} 策略歷史回測資產曲線`}>
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
         <line className="backtest-baseline" x1={padding.left} x2={width - padding.right} y1={baselineY} y2={baselineY} />
         <polyline className="backtest-line" points={points} />
@@ -459,6 +467,14 @@ export default function Home() {
   const [simulatorResult, setSimulatorResult] = useState<BacktestResult | null>(null);
   const [simulatorError, setSimulatorError] = useState("");
   const [backtestHistory, setBacktestHistory] = useState<BacktestHistoryItem[]>([]);
+  const [paperAccount, setPaperAccount] = useState<PaperAccount>(DEFAULT_PAPER_ACCOUNT);
+  const [paperCode, setPaperCode] = useState("0050");
+  const [paperSide, setPaperSide] = useState<"buy" | "sell">("buy");
+  const [paperShares, setPaperShares] = useState(1000);
+  const [paperQuote, setPaperQuote] = useState<PaperQuote | null>(null);
+  const [paperStatus, setPaperStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [paperMessage, setPaperMessage] = useState("");
+  const [paperRefreshing, setPaperRefreshing] = useState(false);
 
   const loadScreener = useCallback(async () => {
     setScreenerStatus((current) => current === "building" ? "building" : "loading");
@@ -486,6 +502,7 @@ export default function Home() {
         const savedHistory = localStorage.getItem("tw-signal-history");
         const savedFontSize = localStorage.getItem("tw-signal-font-size") as FontSize | null;
         const savedBacktests = localStorage.getItem("tw-signal-backtests");
+        const savedPaperAccount = localStorage.getItem("tw-signal-paper-account");
         if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
         if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
         if (savedHistory) setHistory(JSON.parse(savedHistory));
@@ -493,6 +510,7 @@ export default function Home() {
           setFontSize(savedFontSize);
         }
         if (savedBacktests) setBacktestHistory(JSON.parse(savedBacktests));
+        if (savedPaperAccount) setPaperAccount({ ...DEFAULT_PAPER_ACCOUNT, ...JSON.parse(savedPaperAccount) });
       } catch {
         // Ignore malformed browser storage and keep safe defaults.
       }
@@ -677,9 +695,128 @@ export default function Home() {
       localStorage.setItem("tw-signal-backtests", JSON.stringify(nextHistory));
     } catch (caught) {
       setSimulatorStatus("error");
-      setSimulatorError(caught instanceof Error ? caught.message : "策略模擬失敗，請稍後重試。");
+      setSimulatorError(caught instanceof Error ? caught.message : "策略歷史回測失敗，請稍後重試。");
     }
   };
+
+  const savePaperAccount = (next: PaperAccount) => {
+    setPaperAccount(next);
+    localStorage.setItem("tw-signal-paper-account", JSON.stringify(next));
+  };
+
+  const loadPaperQuote = async (requestedCode = paperCode) => {
+    const target = normalizeStockCode(requestedCode);
+    setPaperCode(target);
+    setPaperStatus("loading");
+    setPaperMessage("");
+    setPaperQuote(null);
+    if (!isSupportedStockCode(target)) {
+      setPaperStatus("error");
+      setPaperMessage("請輸入有效的上市／上櫃股票或 ETF 代碼。");
+      return;
+    }
+    try {
+      const payload = await fetchStockAnalysis(target);
+      if (!payload.result) throw new Error(payload.notice || "這檔股票目前沒有足夠資料。");
+      setPaperQuote(payload.result);
+      setPaperStatus("ready");
+    } catch (caught) {
+      setPaperStatus("error");
+      setPaperMessage(caught instanceof Error ? caught.message : "目前無法取得盤後價格。");
+    }
+  };
+
+  const openPaperOrder = (analysis: AnalysisResult) => {
+    setActiveView("paper");
+    setDrawerOpen(false);
+    setPaperCode(analysis.code);
+    setPaperSide("buy");
+    setPaperShares(Math.max(1, analysis.risk.shares || 1));
+    setPaperQuote(analysis);
+    setPaperStatus("ready");
+    setPaperMessage("已帶入風險計畫的參考股數，你仍可自行調整。");
+    window.setTimeout(() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" }), 0);
+  };
+
+  const openHistoryPaperOrder = (item: HistoryItem) => {
+    setActiveView("paper");
+    setDrawerOpen(false);
+    setPaperCode(item.code);
+    setPaperSide("buy");
+    setPaperShares(1000);
+    setPaperQuote(null);
+    setPaperStatus("loading");
+    window.setTimeout(() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" }), 0);
+    void loadPaperQuote(item.code);
+  };
+
+  const executePaperOrder = (event: FormEvent) => {
+    event.preventDefault();
+    const target = normalizeStockCode(paperCode);
+    const shares = Math.floor(paperShares);
+    if (!paperQuote || paperQuote.code !== target) {
+      setPaperStatus("error");
+      setPaperMessage("股票代碼已變更，請先重新取得盤後價格。");
+      return;
+    }
+    if (!Number.isFinite(shares) || shares <= 0) {
+      setPaperStatus("error");
+      setPaperMessage("股數必須是大於 0 的整數。");
+      return;
+    }
+    const price = paperQuote.price;
+    const gross = price * shares;
+    const fee = Math.max(20, Math.round(gross * 0.001425));
+    const tax = paperSide === "sell" ? Math.round(gross * 0.003) : 0;
+    const current = paperAccount.positions.find((position) => position.code === target);
+    let nextPositions = [...paperAccount.positions];
+    let nextCash = paperAccount.cash;
+    if (paperSide === "buy") {
+      const totalCost = gross + fee;
+      if (totalCost > paperAccount.cash) {
+        setPaperStatus("error");
+        setPaperMessage(`可用現金不足，這筆虛擬買進約需 ${formatCurrency(totalCost)}。`);
+        return;
+      }
+      const oldShares = current?.shares || 0;
+      const oldCost = current ? current.averageCost * current.shares : 0;
+      const nextPosition: PaperPosition = { code: target, name: paperQuote.name, shares: oldShares + shares, averageCost: (oldCost + totalCost) / (oldShares + shares), lastPrice: price, dataDate: paperQuote.dataDate };
+      nextPositions = [nextPosition, ...nextPositions.filter((position) => position.code !== target)];
+      nextCash -= totalCost;
+    } else {
+      if (!current || current.shares < shares) {
+        setPaperStatus("error");
+        setPaperMessage(`持股不足，目前只有 ${(current?.shares || 0).toLocaleString("zh-TW")} 股。`);
+        return;
+      }
+      const remaining = current.shares - shares;
+      nextPositions = remaining > 0 ? nextPositions.map((position) => position.code === target ? { ...position, shares: remaining, lastPrice: price, dataDate: paperQuote.dataDate } : position) : nextPositions.filter((position) => position.code !== target);
+      nextCash += gross - fee - tax;
+    }
+    const trade: PaperTrade = { id: `${Date.now()}-${target}`, side: paperSide, code: target, name: paperQuote.name, shares, price, fee, tax, total: paperSide === "buy" ? gross + fee : gross - fee - tax, dataDate: paperQuote.dataDate, createdAt: new Date().toISOString() };
+    savePaperAccount({ ...paperAccount, cash: nextCash, positions: nextPositions, trades: [trade, ...paperAccount.trades].slice(0, 100) });
+    setPaperStatus("ready");
+    setPaperMessage(`${paperSide === "buy" ? "虛擬買進" : "虛擬賣出"}完成：${target} ${shares.toLocaleString("zh-TW")} 股，成交基準為 ${paperQuote.dataDate} 收盤價。`);
+  };
+
+  const refreshPaperPositions = async () => {
+    if (!paperAccount.positions.length || paperRefreshing) return;
+    setPaperRefreshing(true);
+    setPaperMessage("");
+    const refreshed = await Promise.all(paperAccount.positions.map(async (position) => {
+      try {
+        const payload = await fetchStockAnalysis(position.code);
+        return payload.result ? { ...position, name: payload.result.name, lastPrice: payload.result.price, dataDate: payload.result.dataDate } : position;
+      } catch { return position; }
+    }));
+    savePaperAccount({ ...paperAccount, positions: refreshed });
+    setPaperRefreshing(false);
+    setPaperMessage("持股已更新為目前可取得的最新盤後價格。");
+  };
+
+  const paperMarketValue = useMemo(() => paperAccount.positions.reduce((total, position) => total + position.shares * position.lastPrice, 0), [paperAccount.positions]);
+  const paperTotalAssets = paperAccount.cash + paperMarketValue;
+  const paperProfit = paperTotalAssets - paperAccount.initialCapital;
 
   const ruleCount = useMemo(() => result?.rules.filter((rule) => rule.pass).length ?? 0, [result]);
   const expectedDataDate = expectedLatestTradingDate();
@@ -723,8 +860,11 @@ export default function Home() {
             <button className={activeView === "screener" ? "active" : ""} type="button" onClick={() => switchView("screener")}>
               <Icon name="radar" size={19} /><span><strong>0050 機會雷達</strong><small>{screenerSnapshot ? `${screenerSnapshot.groups.ready.length} 檔條件已符合` : "掃描 50 檔成分股"}</small></span>
             </button>
+            <button className={activeView === "paper" ? "active" : ""} type="button" onClick={() => switchView("paper")}>
+              <Icon name="trade" size={19} /><span><strong>虛擬交易市場</strong><small>100萬元紙上交易帳戶</small></span>
+            </button>
             <button className={activeView === "simulator" ? "active" : ""} type="button" onClick={() => switchView("simulator")}>
-              <Icon name="simulator" size={19} /><span><strong>策略模擬場</strong><small>歷史時光機與0050比較</small></span>
+              <Icon name="simulator" size={19} /><span><strong>策略歷史回測</strong><small>重播歷史並與0050比較</small></span>
             </button>
             <button className={activeView === "guide" ? "active" : ""} type="button" onClick={() => switchView("guide")}>
               <Icon name="book" size={19} /><span><strong>策略白話說明</strong><small>1：3、停損與股數</small></span>
@@ -955,6 +1095,11 @@ export default function Home() {
               <p className="execution-note"><Icon name="alert" size={17} />實際下單前，請用成交價重新計算停損與股數；若開盤跳空超過建議區間、風報比不足或大盤轉弱，應放棄進場。</p>
             </section>
 
+            <section className="paper-trade-cta card">
+              <div><span>不動用真金</span><h2>把這份風險計畫放進虛擬市場測試</h2><p>系統會帶入股票、最新盤後收盤價與建議股數，你可以自行調整後用100萬元虛擬帳戶下單。</p></div>
+              <button type="button" onClick={() => openPaperOrder(result)}><Icon name="trade" size={18} />模擬下單</button>
+            </section>
+
             <section className="details-grid">
               <article className="card detail-card">
                 <span>動能</span>
@@ -1054,13 +1199,52 @@ export default function Home() {
           </div>
         ) : null}
 
+        {activeView === "paper" ? (
+          <div className="paper-market-page">
+            <section className="paper-market-hero">
+              <div><span className="eyebrow">紙上交易 × 上市上櫃市場</span><h1>虛擬交易市場</h1><p>用100萬元虛擬資金練習買賣、建立持股並追蹤損益。成交基準採最新盤後收盤價，不會連到券商，也不會動用真實資金。</p></div>
+              <button type="button" onClick={() => void refreshPaperPositions()} disabled={paperRefreshing || !paperAccount.positions.length}><Icon name="refresh" size={17} />{paperRefreshing ? "更新中…" : "更新持股價格"}</button>
+            </section>
+            <section className="paper-account-summary card">
+              <div><span>虛擬總資產</span><strong>{formatCurrency(paperTotalAssets)}</strong><small>初始 {formatCurrency(paperAccount.initialCapital)}</small></div>
+              <div><span>可用現金</span><strong>{formatCurrency(paperAccount.cash)}</strong><small>尚未投入的虛擬資金</small></div>
+              <div><span>持股市值</span><strong>{formatCurrency(paperMarketValue)}</strong><small>{paperAccount.positions.length} 檔持股</small></div>
+              <div><span>帳戶總損益</span><strong className={paperProfit >= 0 ? "price-up" : "price-down"}>{paperProfit >= 0 ? "+" : ""}{formatCurrency(paperProfit)}</strong><small>{paperProfit >= 0 ? "+" : ""}{(paperProfit / paperAccount.initialCapital * 100).toFixed(2)}%</small></div>
+            </section>
+            <section className="paper-order-card card">
+              <div className="section-heading"><div><span>虛擬委託單</span><h2>用盤後收盤價模擬成交</h2></div><small>資料日期會顯示在成交確認中</small></div>
+              <div className="paper-quote-search">
+                <label><span>股票代碼</span><input aria-label="虛擬交易股票代碼" maxLength={6} value={paperCode} onChange={(event) => { setPaperCode(normalizeStockCode(event.target.value)); setPaperQuote(null); setPaperStatus("idle"); setPaperMessage(""); }} placeholder="例如 2330、3374" /></label>
+                <button type="button" onClick={() => void loadPaperQuote()} disabled={paperStatus === "loading"}><Icon name="search" size={17} />{paperStatus === "loading" ? "查詢中…" : "取得盤後價格"}</button>
+              </div>
+              {paperQuote ? <div className="paper-quote"><div><strong>{paperQuote.code}</strong><span>{paperQuote.name}</span></div><div><small>{paperQuote.dataDate} 收盤價</small><strong>{formatPrice(paperQuote.price)}</strong></div>{paperQuote.verdict && paperQuote.verdictKey ? <div><small>策略判斷</small><em className={`history-${paperQuote.verdictKey}`}>{paperQuote.verdict}</em></div> : null}</div> : null}
+              <form className="paper-order-form" onSubmit={executePaperOrder}>
+                <fieldset><legend>方向</legend><div className="paper-side-options"><button className={paperSide === "buy" ? "active buy" : ""} type="button" onClick={() => setPaperSide("buy")}>虛擬買進</button><button className={paperSide === "sell" ? "active sell" : ""} type="button" onClick={() => setPaperSide("sell")}>虛擬賣出</button></div></fieldset>
+                <label><span>股數</span><input aria-label="虛擬交易股數" type="number" min="1" step="1" value={paperShares} onChange={(event) => setPaperShares(Number(event.target.value))} /></label>
+                <div className="paper-order-estimate"><span>預估成交金額</span><strong>{paperQuote ? formatCurrency(paperQuote.price * Math.max(0, paperShares || 0)) : "先取得價格"}</strong></div>
+                <button className={paperSide === "buy" ? "paper-buy-button" : "paper-sell-button"} type="submit" disabled={!paperQuote}>確認{paperSide === "buy" ? "買進" : "賣出"}</button>
+              </form>
+              {paperMessage ? <p className={`paper-order-message${paperStatus === "error" ? " is-error" : ""}`}>{paperMessage}</p> : null}
+              <p className="paper-fee-note">虛擬成交估入0.1425%手續費（最低20元）；賣出另以0.3%交易稅估算。ETF等標的實際稅率可能不同，本頁只作練習。</p>
+            </section>
+            <section className="paper-positions card">
+              <div className="section-heading"><div><span>虛擬持股</span><h2>目前投資組合</h2></div><small>價格需手動更新</small></div>
+              {paperAccount.positions.length ? <div className="paper-position-list">{paperAccount.positions.map((position) => { const positionProfit = (position.lastPrice - position.averageCost) * position.shares; return <article key={position.code}><div><strong>{position.code}</strong><small>{position.name}</small></div><div><span>{position.shares.toLocaleString("zh-TW")} 股</span><small>均價 {formatPrice(position.averageCost)}</small></div><div><span>{formatPrice(position.lastPrice)}</span><small>{position.dataDate} 收盤</small></div><strong className={positionProfit >= 0 ? "price-up" : "price-down"}>{positionProfit >= 0 ? "+" : ""}{formatCurrency(positionProfit)}</strong><div className="paper-position-actions"><button type="button" onClick={() => { setPaperCode(position.code); setPaperSide("buy"); setPaperShares(1000); setPaperQuote({ code: position.code, name: position.name, price: position.lastPrice, dataDate: position.dataDate }); setPaperStatus("ready"); }}>加碼</button><button type="button" onClick={() => { setPaperCode(position.code); setPaperSide("sell"); setPaperShares(position.shares); setPaperQuote({ code: position.code, name: position.name, price: position.lastPrice, dataDate: position.dataDate }); setPaperStatus("ready"); }}>賣出</button></div></article>; })}</div> : <p className="paper-empty">目前還沒有虛擬持股。可以從上方查詢股票，或在個股分析的「風險計畫」後面按下「模擬下單」。</p>}
+            </section>
+            <section className="paper-trades card">
+              <div className="section-heading"><div><span>虛擬成交紀錄</span><h2>最近100筆交易</h2></div><small>只保存在這台裝置</small></div>
+              {paperAccount.trades.length ? <div className="paper-trade-list">{paperAccount.trades.map((trade) => <article key={trade.id}><em className={trade.side}>{trade.side === "buy" ? "買進" : "賣出"}</em><div><strong>{trade.code}</strong><small>{trade.name}</small></div><div><span>{trade.shares.toLocaleString("zh-TW")} 股 × {formatPrice(trade.price)}</span><small>{trade.dataDate} 收盤價成交</small></div><strong>{formatCurrency(trade.total)}</strong></article>)}</div> : <p className="paper-empty">完成第一筆虛擬買進後，成交紀錄會出現在這裡。</p>}
+            </section>
+          </div>
+        ) : null}
+
         {activeView === "simulator" ? (
           <div className="simulator-page">
             <section className="simulator-hero">
               <div>
                 <span className="eyebrow">歷史時光機 × 防止偷看未來</span>
-                <h1>策略模擬場</h1>
-                <p>用100萬元虛擬資金重播歷史日線。訊號在收盤後產生，最早下一交易日開盤成交，並和同期0050比較。</p>
+                <h1>策略歷史回測</h1>
+                <p>重播過去日線，檢查策略在歷史期間的訊號、成交與績效，並和同期0050比較。這不是持續經營的虛擬帳戶。</p>
               </div>
             </section>
 
@@ -1087,7 +1271,7 @@ export default function Home() {
               </label>
               <button type="submit" disabled={simulatorStatus === "loading"}>
                 <Icon name="simulator" size={18} />
-                {simulatorStatus === "loading" ? "正在重播歷史…" : "開始策略模擬"}
+                {simulatorStatus === "loading" ? "正在重播歷史…" : "開始歷史回測"}
               </button>
             </form>
 
@@ -1099,8 +1283,8 @@ export default function Home() {
             </section>
 
             {backtestHistory.length ? (
-              <div className="simulator-history" aria-label="最近策略模擬">
-                <span>最近模擬</span>
+              <div className="simulator-history" aria-label="最近策略歷史回測">
+                <span>最近回測</span>
                 {backtestHistory.slice(0, 6).map((item) => (
                   <button key={`${item.result.code}-${item.periodDays}`} type="button" onClick={() => void runBacktest(item.result.code, item.periodDays)}>
                     {item.result.code}・{item.periodDays}日
@@ -1172,11 +1356,6 @@ export default function Home() {
               </div>
             ) : null}
 
-            <section className="realtime-note card">
-              <Icon name="clock" size={22} />
-              <div><h2>盤中即時股價：技術可做，正式版需行情授權</h2><p>未接上合法即時行情商前，模擬場維持盤後日線。未來即時價格只用於盤中顯示與虛擬損益，策略仍以收盤資料確認，避免訊號盤中反覆變動。</p></div>
-              <a href="https://www.twse.com.tw/zh/products/information/real-time.html" rel="noreferrer" target="_blank">查看證交所授權說明</a>
-            </section>
           </div>
         ) : null}
 
@@ -1232,20 +1411,12 @@ export default function Home() {
               {history.map((item) => {
                 const needsRefresh = item.dataDate < expectedDataDate;
                 return (
-                  <button
-                    type="button"
-                    key={item.code}
-                    onClick={() => void runAnalysis(item.code)}
-                    disabled={historyRefresh.running}
-                    title={`資料日期 ${item.dataDate}；點選可重新分析`}
-                  >
-                    <span className="history-stock"><b>{item.code}</b>{item.name}</span>
-                    <em className={`history-${item.verdictKey}`}>{item.verdict}</em>
-                    <span className={`history-date ${needsRefresh ? "is-stale" : ""}`}>
-                      <small>資料日 {formatHistoryDate(item.dataDate)}</small>
-                      {needsRefresh ? <i>可能需更新</i> : null}
-                    </span>
-                  </button>
+                  <div className="history-row" key={item.code}>
+                    <button className="history-reanalyze" type="button" onClick={() => void runAnalysis(item.code)} disabled={historyRefresh.running} title={`資料日期 ${item.dataDate}；點選可重新分析`}>
+                      <span className="history-stock"><b>{item.code}</b>{item.name}</span><em className={`history-${item.verdictKey}`}>{item.verdict}</em><span className={`history-date ${needsRefresh ? "is-stale" : ""}`}><small>資料日 {formatHistoryDate(item.dataDate)}</small>{needsRefresh ? <i>可能需更新</i> : null}</span>
+                    </button>
+                    <button className="history-trade-button" type="button" onClick={() => openHistoryPaperOrder(item)} disabled={historyRefresh.running}><Icon name="trade" size={14} />模擬交易</button>
+                  </div>
                 );
               })}
             </div>
