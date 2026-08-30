@@ -884,6 +884,16 @@ button { color: inherit; }
 .paper-trade-list em.buy { background: var(--green-soft); color: var(--green); }
 .paper-trade-list em.sell { background: var(--red-soft); color: var(--red); }
 .paper-empty { background: var(--paper); border-radius: 10px; color: var(--muted); font-size: 0.75rem; line-height: 1.7; margin: 14px 0 0; padding: 16px; }
+.paper-challenge-heading > div:last-child { align-items: flex-end; display: flex; gap: 9px; }
+.paper-challenge-heading button { background: var(--red-soft); border: 0; border-radius: 8px; color: var(--red); cursor: pointer; font-size: 0.625rem; font-weight: 850; min-height: 32px; padding: 0 10px; }
+.paper-clear-panel { align-items: center; background: var(--red-soft); border: 1px solid color-mix(in srgb, var(--red) 24%, transparent); border-radius: 11px; display: flex; gap: 16px; justify-content: space-between; margin-top: 15px; padding: 14px 16px; }
+.paper-clear-panel > div:first-child { display: grid; gap: 4px; }
+.paper-clear-panel strong { color: var(--red); font-size: 0.75rem; }
+.paper-clear-panel p { color: var(--muted); font-size: 0.6875rem; line-height: 1.55; margin: 0; }
+.paper-clear-panel > div:last-child { display: flex; flex: 0 0 auto; gap: 7px; }
+.paper-clear-panel button { background: var(--amber); border: 0; border-radius: 8px; color: white; cursor: pointer; font-size: 0.6875rem; font-weight: 850; min-height: 36px; padding: 0 11px; }
+.paper-clear-panel .confirm-delete { background: var(--red); }
+.paper-clear-panel .cancel { background: var(--card); border: 1px solid var(--line); color: var(--muted); }
 .paper-challenge-list { display: grid; margin-top: 13px; }
 .paper-challenge-list article { align-items: center; border-top: 1px solid var(--line); display: grid; gap: 14px; grid-template-columns: auto 1fr 1fr auto; padding: 14px 2px; }
 .paper-challenge-list article > b { background: var(--paper); border-radius: 8px; color: var(--green); font-size: 0.6875rem; padding: 7px 9px; }
@@ -1029,6 +1039,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .paper-position-actions { grid-column: 2 / -1; grid-row: 2; justify-content: flex-end; }
   .paper-trade-list article { grid-template-columns: auto 1fr auto; }
   .paper-trade-list article > div:nth-child(3) { grid-column: 2 / -1; grid-row: 2; }
+  .paper-clear-panel { align-items: flex-start; flex-direction: column; }
   .paper-challenge-list article { grid-template-columns: auto 1fr 1fr; }
   .paper-challenge-list time { grid-column: 2 / -1; text-align: left; }
   .term-tip > span { left: auto; right: -15px; transform: none; width: min(230px, 72vw); }
@@ -1106,6 +1117,9 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .paper-restart-panel dl div { border-bottom: 1px solid var(--line); border-left: 0; padding: 9px 0; }
   .paper-restart-panel dl div:last-child { border-bottom: 0; }
   .paper-restart-actions { flex-direction: column; }
+  .paper-challenge-heading { align-items: flex-start; }
+  .paper-challenge-heading > div:last-child { align-items: flex-end; flex-direction: column; }
+  .paper-clear-panel > div:last-child { flex-direction: column; width: 100%; }
   .paper-challenge-list article { grid-template-columns: auto 1fr; }
   .paper-challenge-list article > div:nth-child(3), .paper-challenge-list time { grid-column: 1 / -1; }
 }
