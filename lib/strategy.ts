@@ -199,6 +199,51 @@ export type ScreenerPayload =
       message: string;
     };
 
+export type BacktestTrade = {
+  entryDate: string;
+  entryPrice: number;
+  exitDate: string;
+  exitPrice: number;
+  shares: number;
+  stop: number;
+  target: number;
+  exitReason: "stop" | "target" | "trend" | "period-end";
+  profit: number;
+  returnPercent: number;
+};
+
+export type BacktestResult = {
+  code: string;
+  name: string;
+  initialCapital: number;
+  finalEquity: number;
+  startDate: string;
+  endDate: string;
+  testedTradingDays: number;
+  signalCount: number;
+  skippedGapCount: number;
+  strategyReturnPercent: number;
+  benchmarkReturnPercent: number;
+  excessReturnPercent: number;
+  maxDrawdownPercent: number;
+  completedTrades: number;
+  winRatePercent: number;
+  profitFactor: number | null;
+  assumptions: string[];
+  trades: BacktestTrade[];
+  equityCurve: Array<{ date: string; equity: number }>;
+};
+
+export type BacktestPayload = {
+  result: BacktestResult;
+  generatedAt: string;
+  source: {
+    name: string;
+    license: string;
+    url: string;
+  };
+};
+
 const signalApiBaseUrl = () =>
   (
     process.env.NEXT_PUBLIC_SIGNAL_API_URL ||
@@ -308,6 +353,40 @@ export async function fetchTaiwan50Screener(): Promise<ScreenerPayload> {
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("0050 雷達更新超過 60 秒，請稍後重新整理。");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+export async function fetchStrategyBacktest(code: string, periodDays: number): Promise<BacktestPayload> {
+  const normalizedCode = normalizeStockCode(code);
+  if (!isSupportedStockCode(normalizedCode)) {
+    throw new Error("請輸入正確的上市／上櫃股票或 ETF 代碼。");
+  }
+  const normalizedPeriod = Math.min(90, Math.max(20, Math.trunc(periodDays || 60)));
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 60_000);
+  try {
+    const response = await fetch(`${signalApiBaseUrl()}/api/simulator/backtest`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: normalizedCode, periodDays: normalizedPeriod }),
+      signal: controller.signal,
+    });
+    const payload = (await response.json().catch(() => null)) as BacktestPayload | { error?: string } | null;
+    if (!response.ok) {
+      throw new Error(payload && "error" in payload && payload.error ? payload.error : "策略模擬服務暫時無法使用。");
+    }
+    if (!payload || !("result" in payload) || !Array.isArray(payload.result.equityCurve)) {
+      throw new Error("策略模擬服務回傳的資料格式不正確。");
+    }
+    return payload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("策略模擬超過 60 秒，請稍後重新嘗試。");
     }
     throw error;
   } finally {
