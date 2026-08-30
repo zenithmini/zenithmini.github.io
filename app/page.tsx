@@ -4,6 +4,7 @@ import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState
 import {
   AnalysisResult,
   AnalysisPayload,
+  BacktestResult,
   FibonacciAnalysis,
   MarketRegime,
   ScreenerItem,
@@ -11,6 +12,7 @@ import {
   StrategySettings,
   applyPositionSizing,
   fetchStockAnalysis,
+  fetchStrategyBacktest,
   fetchTaiwan50Screener,
   isSupportedStockCode,
   normalizeStockCode,
@@ -65,7 +67,7 @@ const formatPrice = (value: number) =>
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("zh-TW", { style: "currency", currency: "TWD", maximumFractionDigits: 0 }).format(value);
 
-type IconName = "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock" | "menu" | "close" | "home" | "radar" | "book" | "info" | "refresh";
+type IconName = "search" | "star" | "shield" | "chart" | "check" | "alert" | "clock" | "menu" | "close" | "home" | "radar" | "simulator" | "book" | "info" | "refresh";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<typeof name, ReactNode> = {
@@ -80,6 +82,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     close: <><path d="m6 6 12 12"/><path d="m18 6-12 12"/></>,
     home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></>,
     radar: <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 12 18 6"/><path d="M12 2v2"/><path d="M22 12h-2"/></>,
+    simulator: <><path d="M8 3h8"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/><path d="M8 15h8"/></>,
     book: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22Z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22Z"/></>,
     info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7h.01"/></>,
     refresh: <><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.2 9A7 7 0 0 0 6.1 6.4L4 8"/><path d="M5.8 15A7 7 0 0 0 17.9 17.6L20 16"/></>,
@@ -91,7 +94,7 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   );
 }
 
-type ViewMode = "analysis" | "screener" | "guide";
+type ViewMode = "analysis" | "screener" | "simulator" | "guide";
 type FontSize = "small" | "standard" | "large" | "extra-large";
 
 const FONT_SIZE_OPTIONS: Array<{ value: FontSize; label: string }> = [
@@ -100,6 +103,12 @@ const FONT_SIZE_OPTIONS: Array<{ value: FontSize; label: string }> = [
   { value: "large", label: "大" },
   { value: "extra-large", label: "特大" },
 ];
+
+type BacktestHistoryItem = {
+  result: BacktestResult;
+  periodDays: number;
+  savedAt: string;
+};
 
 function TermTip({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -389,6 +398,35 @@ function FibonacciCard({ fibonacci }: { fibonacci: FibonacciAnalysis }) {
   );
 }
 
+function BacktestChart({ result }: { result: BacktestResult }) {
+  const width = 760;
+  const height = 230;
+  const padding = { left: 18, right: 18, top: 20, bottom: 30 };
+  const values = result.equityCurve.map((point) => point.equity);
+  const minimum = Math.min(result.initialCapital, ...values);
+  const maximum = Math.max(result.initialCapital, ...values);
+  const range = Math.max(maximum - minimum, result.initialCapital * 0.01);
+  const lower = minimum - range * 0.12;
+  const upper = maximum + range * 0.12;
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const x = (index: number) => padding.left + (index / Math.max(1, values.length - 1)) * plotWidth;
+  const y = (value: number) => padding.top + ((upper - value) / (upper - lower)) * plotHeight;
+  const points = values.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+  const baselineY = y(result.initialCapital);
+  return (
+    <div className="backtest-chart" role="img" aria-label={`${result.code} 策略模擬資產曲線`}>
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <line className="backtest-baseline" x1={padding.left} x2={width - padding.right} y1={baselineY} y2={baselineY} />
+        <polyline className="backtest-line" points={points} />
+        <text x={padding.left} y={height - 8}>{result.startDate.slice(5)}</text>
+        <text textAnchor="end" x={width - padding.right} y={height - 8}>{result.endDate.slice(5)}</text>
+      </svg>
+      <div><span><i />策略資產</span><span>虛線為初始100萬元</span></div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [code, setCode] = useState("0050");
   const [settings, setSettings] = useState<StrategySettings>(DEFAULT_SETTINGS);
@@ -415,6 +453,12 @@ export default function Home() {
   const [screenerSnapshot, setScreenerSnapshot] = useState<ScreenerSnapshot | null>(null);
   const [screenerProgress, setScreenerProgress] = useState({ completed: 0, total: 50, failed: 0 });
   const [screenerError, setScreenerError] = useState("");
+  const [simulatorCode, setSimulatorCode] = useState("0050");
+  const [simulatorPeriod, setSimulatorPeriod] = useState(60);
+  const [simulatorStatus, setSimulatorStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [simulatorResult, setSimulatorResult] = useState<BacktestResult | null>(null);
+  const [simulatorError, setSimulatorError] = useState("");
+  const [backtestHistory, setBacktestHistory] = useState<BacktestHistoryItem[]>([]);
 
   const loadScreener = useCallback(async () => {
     setScreenerStatus((current) => current === "building" ? "building" : "loading");
@@ -441,12 +485,14 @@ export default function Home() {
         const savedWatchlist = localStorage.getItem("tw-signal-watchlist");
         const savedHistory = localStorage.getItem("tw-signal-history");
         const savedFontSize = localStorage.getItem("tw-signal-font-size") as FontSize | null;
+        const savedBacktests = localStorage.getItem("tw-signal-backtests");
         if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) });
         if (savedWatchlist) setWatchlist(JSON.parse(savedWatchlist));
         if (savedHistory) setHistory(JSON.parse(savedHistory));
         if (savedFontSize && FONT_SIZE_OPTIONS.some((option) => option.value === savedFontSize)) {
           setFontSize(savedFontSize);
         }
+        if (savedBacktests) setBacktestHistory(JSON.parse(savedBacktests));
       } catch {
         // Ignore malformed browser storage and keep safe defaults.
       }
@@ -612,6 +658,29 @@ export default function Home() {
     setHistoryRefresh({ running: false, completed, total: original.length, failed });
   };
 
+  const runBacktest = async (requestedCode = simulatorCode, requestedPeriod = simulatorPeriod) => {
+    const target = normalizeStockCode(requestedCode);
+    setSimulatorCode(target);
+    setSimulatorPeriod(requestedPeriod);
+    setSimulatorStatus("loading");
+    setSimulatorResult(null);
+    setSimulatorError("");
+    try {
+      const payload = await fetchStrategyBacktest(target, requestedPeriod);
+      setSimulatorResult(payload.result);
+      setSimulatorStatus("success");
+      const nextHistory: BacktestHistoryItem[] = [
+        { result: payload.result, periodDays: requestedPeriod, savedAt: new Date().toISOString() },
+        ...backtestHistory.filter((item) => item.result.code !== target || item.periodDays !== requestedPeriod),
+      ].slice(0, 10);
+      setBacktestHistory(nextHistory);
+      localStorage.setItem("tw-signal-backtests", JSON.stringify(nextHistory));
+    } catch (caught) {
+      setSimulatorStatus("error");
+      setSimulatorError(caught instanceof Error ? caught.message : "策略模擬失敗，請稍後重試。");
+    }
+  };
+
   const ruleCount = useMemo(() => result?.rules.filter((rule) => rule.pass).length ?? 0, [result]);
   const expectedDataDate = expectedLatestTradingDate();
 
@@ -653,6 +722,9 @@ export default function Home() {
             </button>
             <button className={activeView === "screener" ? "active" : ""} type="button" onClick={() => switchView("screener")}>
               <Icon name="radar" size={19} /><span><strong>0050 機會雷達</strong><small>{screenerSnapshot ? `${screenerSnapshot.groups.ready.length} 檔條件已符合` : "掃描 50 檔成分股"}</small></span>
+            </button>
+            <button className={activeView === "simulator" ? "active" : ""} type="button" onClick={() => switchView("simulator")}>
+              <Icon name="simulator" size={19} /><span><strong>策略模擬場</strong><small>歷史時光機與0050比較</small></span>
             </button>
             <button className={activeView === "guide" ? "active" : ""} type="button" onClick={() => switchView("guide")}>
               <Icon name="book" size={19} /><span><strong>策略白話說明</strong><small>1：3、停損與股數</small></span>
@@ -979,6 +1051,132 @@ export default function Home() {
                 <AdSenseUnit slot="6743835843" label="0050 機會雷達底部廣告" />
               </div>
             ) : null}
+          </div>
+        ) : null}
+
+        {activeView === "simulator" ? (
+          <div className="simulator-page">
+            <section className="simulator-hero">
+              <div>
+                <span className="eyebrow">歷史時光機 × 防止偷看未來</span>
+                <h1>策略模擬場</h1>
+                <p>用100萬元虛擬資金重播歷史日線。訊號在收盤後產生，最早下一交易日開盤成交，並和同期0050比較。</p>
+              </div>
+            </section>
+
+            <form className="simulator-form card" onSubmit={(event) => { event.preventDefault(); void runBacktest(); }}>
+              <label>
+                <span>股票代碼</span>
+                <input
+                  aria-label="模擬股票代碼"
+                  autoComplete="off"
+                  maxLength={6}
+                  value={simulatorCode}
+                  onChange={(event) => setSimulatorCode(normalizeStockCode(event.target.value))}
+                  placeholder="例如 0050、2330、3374"
+                />
+              </label>
+              <label>
+                <span>測試期間</span>
+                <select aria-label="模擬交易日數" value={simulatorPeriod} onChange={(event) => setSimulatorPeriod(Number(event.target.value))}>
+                  <option value={20}>近20個交易日</option>
+                  <option value={40}>近40個交易日</option>
+                  <option value={60}>近60個交易日</option>
+                  <option value={90}>近90個交易日</option>
+                </select>
+              </label>
+              <button type="submit" disabled={simulatorStatus === "loading"}>
+                <Icon name="simulator" size={18} />
+                {simulatorStatus === "loading" ? "正在重播歷史…" : "開始策略模擬"}
+              </button>
+            </form>
+
+            <section className="simulator-rules card">
+              <div><strong>100萬元</strong><span>固定虛擬本金</span></div>
+              <div><strong>1%</strong><span>單筆風險上限</span></div>
+              <div><strong>25%</strong><span>單檔資金上限</span></div>
+              <p><Icon name="shield" size={17} />只使用當時已經發生的資料；下一日跳空超過3%會放棄該次進場，避免用不可能成交的價格美化績效。</p>
+            </section>
+
+            {backtestHistory.length ? (
+              <div className="simulator-history" aria-label="最近策略模擬">
+                <span>最近模擬</span>
+                {backtestHistory.slice(0, 6).map((item) => (
+                  <button key={`${item.result.code}-${item.periodDays}`} type="button" onClick={() => void runBacktest(item.result.code, item.periodDays)}>
+                    {item.result.code}・{item.periodDays}日
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {simulatorStatus === "loading" ? (
+              <section className="loading-card card" aria-live="polite">
+                <div className="loading-top"><span>逐日重建策略訊號與虛擬成交</span><strong>請稍候</strong></div>
+                <div className="progress-track"><i style={{ width: "58%" }} /></div>
+                <p>第一次執行需要下載個股、加權指數與0050歷史資料；相同條件之後會讀取快取。</p>
+              </section>
+            ) : null}
+
+            {simulatorStatus === "error" ? (
+              <section className="error-card card" role="alert">
+                <div className="error-icon"><Icon name="alert" size={24} /></div>
+                <div><h2>這次無法完成模擬</h2><p>{simulatorError}</p></div>
+                <button type="button" onClick={() => void runBacktest()}>重新嘗試</button>
+              </section>
+            ) : null}
+
+            {simulatorStatus === "success" && simulatorResult ? (
+              <div className="simulator-results" aria-live="polite">
+                <section className={`simulator-verdict card ${simulatorResult.excessReturnPercent >= 0 ? "is-ahead" : "is-behind"}`}>
+                  <div>
+                    <span>{simulatorResult.code}</span>
+                    <h2>{simulatorResult.name}・{simulatorResult.testedTradingDays}個交易日</h2>
+                    <p>{simulatorResult.startDate} 至 {simulatorResult.endDate}</p>
+                  </div>
+                  <strong>{simulatorResult.excessReturnPercent >= 0 ? "跑贏0050" : "落後0050"}<b>{simulatorResult.excessReturnPercent >= 0 ? "+" : ""}{simulatorResult.excessReturnPercent.toFixed(2)}%</b></strong>
+                </section>
+
+                <section className="simulator-metrics card">
+                  <div><span>策略報酬</span><strong className={simulatorResult.strategyReturnPercent >= 0 ? "price-up" : "price-down"}>{simulatorResult.strategyReturnPercent >= 0 ? "+" : ""}{simulatorResult.strategyReturnPercent.toFixed(2)}%</strong><small>{formatCurrency(simulatorResult.finalEquity)}</small></div>
+                  <div><span>同期0050</span><strong>{simulatorResult.benchmarkReturnPercent >= 0 ? "+" : ""}{simulatorResult.benchmarkReturnPercent.toFixed(2)}%</strong><small>買進持有比較</small></div>
+                  <div><span>最大資金回落</span><strong>{simulatorResult.maxDrawdownPercent.toFixed(2)}%</strong><small>期間內最深跌幅</small></div>
+                  <div><span>完成交易</span><strong>{simulatorResult.completedTrades} 筆</strong><small>{simulatorResult.signalCount} 次進場訊號</small></div>
+                  <div><span>交易勝率</span><strong>{simulatorResult.winRatePercent.toFixed(1)}%</strong><small>只計已完成交易</small></div>
+                  <div><span>獲利因子</span><strong>{simulatorResult.profitFactor === null ? "∞" : simulatorResult.profitFactor.toFixed(2)}</strong><small>總獲利 ÷ 總虧損</small></div>
+                </section>
+
+                <section className="backtest-chart-card card">
+                  <div className="section-heading"><div><span>虛擬資產曲線</span><h2>策略帳戶變化</h2></div><small>初始 {formatCurrency(simulatorResult.initialCapital)}</small></div>
+                  <BacktestChart result={simulatorResult} />
+                </section>
+
+                <section className="backtest-trades card">
+                  <div className="section-heading"><div><span>成交紀錄</span><h2>每筆進出場</h2></div><small>含滑價與交易成本</small></div>
+                  {simulatorResult.trades.length ? (
+                    <div className="backtest-trade-list">
+                      {simulatorResult.trades.map((trade, index) => (
+                        <article key={`${trade.entryDate}-${trade.exitDate}-${index}`}>
+                          <div><strong>{trade.entryDate.slice(5)} → {trade.exitDate.slice(5)}</strong><small>{trade.shares.toLocaleString("zh-TW")} 股</small></div>
+                          <div><span>{formatPrice(trade.entryPrice)} → {formatPrice(trade.exitPrice)}</span><small>{trade.exitReason === "stop" ? "停損" : trade.exitReason === "target" ? "目標價" : trade.exitReason === "trend" ? "趨勢轉弱" : "測試期結束"}</small></div>
+                          <strong className={trade.profit >= 0 ? "price-up" : "price-down"}>{trade.profit >= 0 ? "+" : ""}{formatCurrency(trade.profit)}<small>{trade.returnPercent >= 0 ? "+" : ""}{trade.returnPercent.toFixed(2)}%</small></strong>
+                        </article>
+                      ))}
+                    </div>
+                  ) : <p className="backtest-empty">這段期間沒有符合「可執行且下一日能合理成交」的訊號。沒有交易也是策略結果，不代表系統故障。</p>}
+                </section>
+
+                <details className="backtest-assumptions card">
+                  <summary>查看模擬假設與限制</summary>
+                  <ul>{simulatorResult.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>
+                </details>
+              </div>
+            ) : null}
+
+            <section className="realtime-note card">
+              <Icon name="clock" size={22} />
+              <div><h2>盤中即時股價：技術可做，正式版需行情授權</h2><p>未接上合法即時行情商前，模擬場維持盤後日線。未來即時價格只用於盤中顯示與虛擬損益，策略仍以收盤資料確認，避免訊號盤中反覆變動。</p></div>
+              <a href="https://www.twse.com.tw/zh/products/information/real-time.html" rel="noreferrer" target="_blank">查看證交所授權說明</a>
+            </section>
           </div>
         ) : null}
 
