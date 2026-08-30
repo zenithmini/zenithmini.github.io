@@ -378,15 +378,15 @@ export async function fetchStrategyBacktest(code: string, periodDays: number): P
     });
     const payload = (await response.json().catch(() => null)) as BacktestPayload | { error?: string } | null;
     if (!response.ok) {
-      throw new Error(payload && "error" in payload && payload.error ? payload.error : "策略模擬服務暫時無法使用。");
+      throw new Error(payload && "error" in payload && payload.error ? payload.error : "策略歷史回測服務暫時無法使用。");
     }
     if (!payload || !("result" in payload) || !Array.isArray(payload.result.equityCurve)) {
-      throw new Error("策略模擬服務回傳的資料格式不正確。");
+      throw new Error("策略歷史回測服務回傳的資料格式不正確。");
     }
     return payload;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("策略模擬超過 60 秒，請稍後重新嘗試。");
+      throw new Error("策略歷史回測超過 60 秒，請稍後重新嘗試。");
     }
     throw error;
   } finally {
