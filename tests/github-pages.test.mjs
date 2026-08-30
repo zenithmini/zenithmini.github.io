@@ -74,7 +74,15 @@ test("public build calls the private analysis API without shipping market-data o
   assert.match(bundle, /tw-signal-font-size/);
   assert.match(bundle, /字體大小/);
   assert.match(bundle, /\/api\/simulator\/backtest/);
-  assert.match(bundle, /策略模擬場/);
+  assert.match(bundle, /策略歷史回測/);
+  assert.match(bundle, /虛擬交易市場/);
+  assert.match(bundle, /用盤後收盤價模擬成交/);
+  assert.match(bundle, /tw-signal-paper-account/);
+  assert.match(bundle, /模擬下單/);
+  assert.match(bundle, /模擬交易/);
+  assert.match(bundle, /虛擬買進/);
+  assert.match(bundle, /虛擬賣出/);
+  assert.doesNotMatch(bundle, /盤中即時股價/);
   assert.match(bundle, /跑贏0050/);
   assert.match(bundle, /TWSE＋TPEx 日線/);
   assert.match(bundle, /3374/);
