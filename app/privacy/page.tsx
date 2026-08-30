@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         <span>PRIVACY</span>
         <h1>隱私權政策</h1>
         <p>我們重視使用者的隱私。本頁說明台股進場判斷器如何使用瀏覽器資料、公開市場資料服務，以及 Google AdSense 的 Cookie 處理方式。</p>
-        <small className="privacy-date">最後更新：2026 年 8 月 20 日</small>
+        <small className="privacy-date">最後更新：2026 年 8 月 30 日</small>
       </header>
 
       <div className="privacy-content">
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
 
         <section className="card">
           <h2>三、儲存在使用者裝置上的資料</h2>
-          <p>為了保留自選股、資金與風險設定、最近分析紀錄及短期市場快取，本網站會使用瀏覽器的 localStorage 與 Service Worker 快取。這些資料主要保存在使用者自己的裝置，可透過清除網站資料或瀏覽器快取移除。</p>
+          <p>為了保留自選股、資金與風險設定、字體大小、最近分析紀錄及短期市場快取，本網站會使用瀏覽器的 localStorage 與 Service Worker 快取。這些資料主要保存在使用者自己的裝置，可透過清除網站資料或瀏覽器快取移除。</p>
         </section>
 
         <section className="card">
