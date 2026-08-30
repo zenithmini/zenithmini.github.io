@@ -1,4 +1,4 @@
-const CACHE_NAME = "tw-signal-v12";
+const CACHE_NAME = "tw-signal-v13";
 const SCOPE = new URL("./", self.location.href);
 const SHELL = [
   new URL("./", SCOPE).href,
