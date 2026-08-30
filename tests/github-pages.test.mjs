@@ -78,10 +78,14 @@ test("public build calls the private analysis API without shipping market-data o
   assert.match(bundle, /虛擬交易市場/);
   assert.match(bundle, /用盤後收盤價模擬成交/);
   assert.match(bundle, /tw-signal-paper-account/);
+  assert.match(bundle, /tw-signal-paper-challenges/);
   assert.match(bundle, /模擬下單/);
   assert.match(bundle, /模擬交易/);
   assert.match(bundle, /虛擬買進/);
   assert.match(bundle, /虛擬賣出/);
+  assert.match(bundle, /保存本輪並重設/);
+  assert.match(bundle, /不保存直接重設/);
+  assert.match(bundle, /分鐘前/);
   assert.doesNotMatch(bundle, /盤中即時股價/);
   assert.match(bundle, /跑贏0050/);
   assert.match(bundle, /TWSE＋TPEx 日線/);
