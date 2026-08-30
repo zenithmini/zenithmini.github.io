@@ -493,6 +493,7 @@ export default function Home() {
   const [paperRefreshing, setPaperRefreshing] = useState(false);
   const [paperChallenges, setPaperChallenges] = useState<PaperChallengeRecord[]>([]);
   const [showPaperRestart, setShowPaperRestart] = useState(false);
+  const [paperClearStage, setPaperClearStage] = useState<0 | 1 | 2>(0);
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
 
   const loadScreener = useCallback(async () => {
@@ -872,6 +873,12 @@ export default function Home() {
     setShowPaperRestart(false);
     setRelativeTimeNow(Date.now());
     setPaperMessage(saveCurrent && paperHasActivity ? "上一輪挑戰已保存，新的100萬元虛擬帳戶已開始。" : "已開始新的100萬元虛擬挑戰。");
+  };
+
+  const clearPaperChallenges = () => {
+    setPaperChallenges([]);
+    localStorage.removeItem("tw-signal-paper-challenges");
+    setPaperClearStage(0);
   };
 
   const ruleCount = useMemo(() => result?.rules.filter((rule) => rule.pass).length ?? 0, [result]);
@@ -1304,7 +1311,19 @@ export default function Home() {
             </section>
             {paperChallenges.length ? (
               <section className="paper-challenges card">
-                <div className="section-heading"><div><span>歷次挑戰</span><h2>已保存的上一輪紀錄</h2></div><small>最多保留20輪</small></div>
+                <div className="section-heading paper-challenge-heading"><div><span>歷次挑戰</span><h2>已保存的上一輪紀錄</h2></div><div><small>最多保留20輪</small><button type="button" onClick={() => setPaperClearStage(1)}>清除紀錄</button></div></div>
+                {paperClearStage ? (
+                  <div className="paper-clear-panel" role="dialog" aria-labelledby="paper-clear-title">
+                    <div>
+                      <strong id="paper-clear-title">{paperClearStage === 1 ? "確定要清除歷次挑戰嗎？" : "最後確認：真的要永久清除嗎？"}</strong>
+                      <p>{paperClearStage === 1 ? `將刪除這台裝置保存的 ${paperChallenges.length} 輪挑戰紀錄，目前這一輪不受影響。` : "清除後無法復原，虛擬資金、目前持股及本輪成交紀錄仍會保留。"}</p>
+                    </div>
+                    <div>
+                      {paperClearStage === 1 ? <button type="button" onClick={() => setPaperClearStage(2)}>繼續清除</button> : <button className="confirm-delete" type="button" onClick={clearPaperChallenges}>確定永久清除</button>}
+                      <button className="cancel" type="button" onClick={() => setPaperClearStage(0)}>取消</button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="paper-challenge-list">{paperChallenges.map((challenge, index) => <article key={challenge.id}><b>第 {paperChallenges.length - index} 輪</b><div><strong>{formatCurrency(challenge.finalAssets)}</strong><small>最終總資產</small></div><div><strong className={challenge.profit >= 0 ? "price-up" : "price-down"}>{challenge.profit >= 0 ? "+" : ""}{challenge.returnPercent.toFixed(2)}%</strong><small>{challenge.tradeCount} 筆交易・{challenge.positionCount} 檔持股</small></div><time dateTime={challenge.savedAt}><strong>{formatRelativeTime(challenge.savedAt, relativeTimeNow)}</strong><small>{formatChallengeTime(challenge.savedAt)}</small></time></article>)}</div>
               </section>
             ) : null}
