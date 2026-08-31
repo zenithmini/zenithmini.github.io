@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AnalysisResult,
   AnalysisPayload,
@@ -140,57 +140,6 @@ function TermTip({ label, children }: { label: string; children: ReactNode }) {
       <summary aria-label={`說明：${label}`}><Icon name="info" size={15} /></summary>
       <span>{children}</span>
     </details>
-  );
-}
-
-function AdSenseUnit({ slot, label }: { slot: string; label: string }) {
-  const adRef = useRef<HTMLModElement | null>(null);
-  const [unfilled, setUnfilled] = useState(false);
-
-  useEffect(() => {
-    const ad = adRef.current;
-    if (!ad) return;
-
-    const updateStatus = () => {
-      const status = ad.getAttribute("data-ad-status");
-      if (status === "unfilled" || status === "unfill-optimized") setUnfilled(true);
-    };
-    const observer = new MutationObserver(updateStatus);
-    observer.observe(ad, { attributes: true, attributeFilter: ["data-ad-status"] });
-
-    const timer = window.setTimeout(() => {
-      if (!ad.getAttribute("data-adsbygoogle-status")) {
-        try {
-          const adWindow = window as Window & { adsbygoogle?: Array<Record<string, unknown>> };
-          (adWindow.adsbygoogle ||= []).push({});
-        } catch (error) {
-          console.warn("AdSense unit failed to initialize", error);
-        }
-      }
-      updateStatus();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-      observer.disconnect();
-    };
-  }, [slot]);
-
-  if (unfilled) return null;
-
-  return (
-    <aside className="ad-placement" aria-label={label}>
-      <span className="ad-placement-label">廣告</span>
-      <ins
-        ref={adRef}
-        className="adsbygoogle"
-        style={{ display: "block" }}
-        data-ad-client="ca-pub-6042352419761579"
-        data-ad-slot={slot}
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
-    </aside>
   );
 }
 
@@ -956,6 +905,15 @@ export default function Home() {
             <Icon name="shield" size={18} />
             <p>先看大盤，再看個股。所有結果僅供研究與風險管理參考。</p>
           </div>
+          <nav className="resource-nav" aria-label="研究說明">
+            <strong>研究與網站說明</strong>
+            <a href="./methodology/">策略與指標原理</a>
+            <a href="./backtest-guide/">回測方式與限制</a>
+            <a href="./risk-management/">風險管理指南</a>
+            <a href="./data-sources/">資料來源與更新</a>
+            <a href="./faq/">常見問題</a>
+            <a href="./about/">關於本站</a>
+          </nav>
         </aside>
 
         <div className="main-column">
@@ -1095,8 +1053,6 @@ export default function Home() {
 
             <EntryPlanCard result={result} />
 
-            <AdSenseUnit slot="9369999183" label="個股分析中間廣告" />
-
             {fibonacci ? <FibonacciCard fibonacci={fibonacci} /> : null}
 
             <section className="chart-card card">
@@ -1234,9 +1190,6 @@ export default function Home() {
                 <div className="radar-groups">
                   <ScreenerGroup title="策略條件已符合" explanation="大盤允許，個股的趨勢與觸發條件也已成立；仍要核對實際成交價。" items={screenerSnapshot.groups.ready} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
                   <ScreenerGroup title="接近進場區" explanation="距離回檔參考區 1.5% 以內，等待價格進區並出現轉強。" items={screenerSnapshot.groups.nearEntry} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
-                  <div className="radar-ad-row">
-                    <AdSenseUnit slot="3727674747" label="0050 機會雷達中間廣告" />
-                  </div>
                   <ScreenerGroup title="關鍵突破觀察" explanation="距突破參考價 1.5% 以內，必須搭配成交量且不可追高。" items={screenerSnapshot.groups.nearBreakout} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
                   <ScreenerGroup title="暫不適合" explanation="大盤、趨勢、過熱、流動性或資料品質未通過；列出來是提醒避開。" items={screenerSnapshot.groups.blocked} onAnalyze={(stockCode) => void runAnalysis(stockCode)} />
                 </div>
@@ -1256,7 +1209,6 @@ export default function Home() {
                 </details>
 
                 <p className="radar-disclaimer">0050 成分股會定期調整；本頁依標示日期的清單與收盤資料篩選。分類只表示規則是否符合，不代表未來一定上漲，也不構成買進推薦。</p>
-                <AdSenseUnit slot="6743835843" label="0050 機會雷達底部廣告" />
               </div>
             ) : null}
           </div>
@@ -1410,16 +1362,26 @@ export default function Home() {
                     <h2>{simulatorResult.name}・{simulatorResult.testedTradingDays}個交易日</h2>
                     <p>{simulatorResult.startDate} 至 {simulatorResult.endDate}</p>
                   </div>
-                  <strong>{simulatorResult.excessReturnPercent >= 0 ? "跑贏0050" : "落後0050"}<b>{simulatorResult.excessReturnPercent >= 0 ? "+" : ""}{simulatorResult.excessReturnPercent.toFixed(2)}%</b></strong>
+                  <strong>{simulatorResult.code === "0050" ? (simulatorResult.excessReturnPercent >= 0 ? "策略高於全額持有" : "策略低於全額持有") : (simulatorResult.excessReturnPercent >= 0 ? "跑贏0050" : "落後0050")}<b>{simulatorResult.excessReturnPercent >= 0 ? "+" : ""}{simulatorResult.excessReturnPercent.toFixed(2)}%</b></strong>
                 </section>
 
                 <section className="simulator-metrics card">
                   <div><span>策略報酬</span><strong className={simulatorResult.strategyReturnPercent >= 0 ? "price-up" : "price-down"}>{simulatorResult.strategyReturnPercent >= 0 ? "+" : ""}{simulatorResult.strategyReturnPercent.toFixed(2)}%</strong><small>{formatCurrency(simulatorResult.finalEquity)}</small></div>
-                  <div><span>同期0050</span><strong>{simulatorResult.benchmarkReturnPercent >= 0 ? "+" : ""}{simulatorResult.benchmarkReturnPercent.toFixed(2)}%</strong><small>買進持有比較</small></div>
+                  <div><span>{simulatorResult.code === "0050" ? "0050全額買進持有" : "同期0050全額持有"}</span><strong>{simulatorResult.benchmarkReturnPercent >= 0 ? "+" : ""}{simulatorResult.benchmarkReturnPercent.toFixed(2)}%</strong><small>100%資金買進並持有</small></div>
                   <div><span>最大資金回落</span><strong>{simulatorResult.maxDrawdownPercent.toFixed(2)}%</strong><small>期間內最深跌幅</small></div>
                   <div><span>完成交易</span><strong>{simulatorResult.completedTrades} 筆</strong><small>{simulatorResult.signalCount} 次進場訊號</small></div>
                   <div><span>交易勝率</span><strong>{simulatorResult.winRatePercent.toFixed(1)}%</strong><small>只計已完成交易</small></div>
                   <div><span>獲利因子</span><strong>{simulatorResult.profitFactor === null ? "∞" : simulatorResult.profitFactor.toFixed(2)}</strong><small>總獲利 ÷ 總虧損</small></div>
+                </section>
+
+                <section className="backtest-comparison-note card">
+                  <Icon name="info" size={20} />
+                  <div>
+                    <strong>{simulatorResult.code === "0050" ? "這個0050對比怎麼看？" : "0050比較基準怎麼看？"}</strong>
+                    <p>{simulatorResult.code === "0050"
+                      ? "策略帳戶依訊號進出，單筆最多投入25%，中性大盤時還會減半；全額買進持有則假設第一天用100%資金買入0050，一路持有到最後一天。這個差額用來觀察市場機會成本，兩邊曝險不同，不是同風險績效比較。"
+                      : "策略帳戶依個股訊號進出，單筆最多投入25%；同期0050則假設第一天用100%資金買入0050並持有到最後一天。它是市場機會成本參考，兩邊標的與曝險不同，不是同風險績效比較。"}</p>
+                  </div>
                 </section>
 
                 {simulatorResult.fibonacciValidation ? (
@@ -1535,7 +1497,19 @@ export default function Home() {
           </section>
         ) : null}
 
-        {activeView === "analysis" ? <AdSenseUnit slot="5040756419" label="個股分析底部廣告" /> : null}
+        {activeView === "analysis" ? (
+          <section className="publisher-intro card" aria-labelledby="publisher-intro-title">
+            <div className="section-heading">
+              <div><span>使用前先理解</span><h2 id="publisher-intro-title">這套工具如何協助判斷，而不是預測漲跌</h2></div>
+            </div>
+            <div className="publisher-intro-grid">
+              <article><b>01</b><h3>先過濾市場環境</h3><p>先用加權指數的中期趨勢、短期方向與價格位置決定是否適合承擔多方風險。大盤轉弱時，即使個股條件不錯，也會降低部位或停止新增交易。</p></article>
+              <article><b>02</b><h3>再檢查個股條件</h3><p>工具依序檢查均線趨勢、回檔位置、RSI、MACD、KD、成交量及費波那契區間。條件符合度只代表規則通過程度，不等於未來上漲機率。</p></article>
+              <article><b>03</b><h3>最後先算可能損失</h3><p>建議股數會同時考慮可用資金、單筆風險、單檔上限、ATR 與停損距離。目標是先控制判斷錯誤的成本，而不是保證獲利。</p></article>
+            </div>
+            <p className="publisher-intro-note">所有行情均為盤後日線，可能受到延遲、除權息、流動性與資料修正影響。請先閱讀<a href="./methodology/">策略原理</a>、<a href="./backtest-guide/">回測限制</a>與<a href="./risk-management/">風險管理指南</a>，再解讀分析結果。</p>
+          </section>
+        ) : null}
 
       </div>
 
@@ -1546,7 +1520,7 @@ export default function Home() {
           、<a href="https://www.tpex.org.tw/zh-tw/openapi.html" rel="noreferrer" target="_blank">證券櫃檯買賣中心公開資料</a>
           ・依各來源開放資料規範利用
         </span>
-        <span className="footer-links"><a href="./privacy/">隱私權政策</a><i />支援上市／上櫃股票與 ETF・日線收盤後更新</span>
+        <span className="footer-links"><a href="./about/">關於本站</a><i /><a href="./methodology/">策略原理</a><i /><a href="./backtest-guide/">回測說明</a><i /><a href="./privacy/">隱私權政策</a><i />支援上市／上櫃股票與 ETF・日線收盤後更新</span>
       </footer>
         </div>
       </div>

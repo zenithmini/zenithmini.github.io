@@ -26,6 +26,27 @@ test("privacy policy is exported with portable asset paths", async () => {
   await Promise.all(references.map((reference) => access(resolve(output, "privacy", reference))));
 });
 
+test("original research pages are exported and internally linked", async () => {
+  const pages = [
+    ["about", /關於台股進場判斷器/],
+    ["methodology", /策略與指標原理/],
+    ["backtest-guide", /0050 對比究竟在比什麼/],
+    ["risk-management", /風險與資金管理指南/],
+    ["data-sources", /資料來源與更新方式/],
+    ["faq", /常見問題/],
+  ];
+
+  for (const [directory, expected] of pages) {
+    const html = await readFile(resolve(output, directory, "index.html"), "utf8");
+    assert.match(html, expected);
+    assert.match(html, /canonical/);
+    assert.doesNotMatch(html, /pagead2\.googlesyndication\.com/);
+  }
+
+  const homepage = await readFile(resolve(output, "index.html"), "utf8");
+  for (const [directory] of pages) assert.match(homepage, new RegExp(`\\./${directory}/`));
+});
+
 test("PWA shell is included in the static export", async () => {
   const manifest = JSON.parse(await readFile(resolve(output, "manifest.webmanifest"), "utf8"));
   assert.equal(manifest.start_url, "./");
@@ -35,10 +56,18 @@ test("PWA shell is included in the static export", async () => {
   await access(resolve(output, "icon-192.png"));
   await access(resolve(output, "icon-512.png"));
   await access(resolve(output, "privacy/index.html"));
+  await access(resolve(output, "about/index.html"));
+  await access(resolve(output, "methodology/index.html"));
+  await access(resolve(output, "backtest-guide/index.html"));
+  await access(resolve(output, "risk-management/index.html"));
+  await access(resolve(output, "data-sources/index.html"));
+  await access(resolve(output, "faq/index.html"));
+  await access(resolve(output, "robots.txt"));
+  await access(resolve(output, "sitemap.xml"));
   await access(resolve(output, ".nojekyll"));
 });
 
-test("AdSense publisher metadata and auto ads loader are included", async () => {
+test("AdSense review mode keeps ownership proof but sends no ad requests", async () => {
   const html = await readFile(resolve(output, "index.html"), "utf8");
   const ads = await readFile(resolve(output, "ads.txt"), "utf8");
   const assetFiles = [...html.matchAll(/\.\/assets\/[^"'\\)]+\.js/g)].map((match) =>
@@ -49,14 +78,13 @@ test("AdSense publisher metadata and auto ads loader are included", async () => 
 
   assert.match(html, /google-adsense-account/);
   assert.match(html, /ca-pub-6042352419761579/);
-  assert.match(html, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
   assert.match(ads, /pub-6042352419761579/);
-  assert.match(html, /5040756419/);
+  assert.doesNotMatch(html, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
+  assert.doesNotMatch(html, /廣告/);
   for (const slot of ["9369999183", "5040756419", "3727674747", "6743835843"]) {
-    assert.match(bundle, new RegExp(slot), `expected AdSense slot ${slot} in client bundle`);
+    assert.doesNotMatch(bundle, new RegExp(slot), `AdSense slot ${slot} must stay disabled during review`);
   }
-  assert.match(bundle, /data-ad-status/);
-  assert.doesNotMatch(html, /廣告預留區/);
+  assert.doesNotMatch(bundle, /data-ad-status/);
 });
 
 test("public build calls the private analysis API without shipping market-data or strategy code", async () => {
@@ -77,6 +105,8 @@ test("public build calls the private analysis API without shipping market-data o
   assert.match(bundle, /策略歷史回測/);
   assert.match(bundle, /費波那契預測驗證/);
   assert.match(bundle, /78\.6% 失效觸及/);
+  assert.match(bundle, /這個0050對比怎麼看/);
+  assert.match(bundle, /不是同風險績效比較/);
   assert.match(bundle, /近120個交易日（約半年）/);
   assert.match(bundle, /虛擬交易市場/);
   assert.match(bundle, /用盤後收盤價模擬成交/);

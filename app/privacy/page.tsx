@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "隱私權政策｜台股進場判斷器",
   description: "台股進場判斷器的資料使用、瀏覽器儲存、第三方服務與廣告 Cookie 說明。",
+  alternates: { canonical: "/privacy/" },
 };
 
 export default function PrivacyPage() {
@@ -41,7 +42,8 @@ export default function PrivacyPage() {
         <section className="card">
           <h2>五、Google AdSense 與廣告 Cookie</h2>
           <ul>
-            <li>本網站已載入 Google AdSense 自動廣告程式；廣告是否顯示及版位由 Google、審核狀態與網站設定共同決定。</li>
+            <li>本網站目前處於廣告審查改善期間，不載入 Google AdSense 廣告程式，也不提出廣告請求。</li>
+            <li>日後若啟用廣告，廣告是否顯示及版位將由 Google、審核狀態與網站設定共同決定，本政策也會同步更新。</li>
             <li>Google 等第三方供應商可能使用 Cookie，依使用者先前造訪本網站或其他網站的情況提供及衡量廣告。</li>
             <li>Google 使用廣告 Cookie，使 Google 與合作夥伴能依使用者的瀏覽情況提供個人化或非個人化廣告。</li>
             <li>使用者可前往 <a href="https://adssettings.google.com/" rel="noreferrer" target="_blank">Google 廣告設定</a>管理個人化廣告，也可依瀏覽器設定限制或刪除 Cookie。</li>

@@ -1,4 +1,4 @@
-const CACHE_NAME = "tw-signal-v17";
+const CACHE_NAME = "tw-signal-v19";
 const SCOPE = new URL("./", self.location.href);
 const SHELL = [
   new URL("./", SCOPE).href,
@@ -7,6 +7,12 @@ const SHELL = [
   new URL("./icon-192.png", SCOPE).href,
   new URL("./icon-512.png", SCOPE).href,
   new URL("./privacy/", SCOPE).href,
+  new URL("./about/", SCOPE).href,
+  new URL("./methodology/", SCOPE).href,
+  new URL("./backtest-guide/", SCOPE).href,
+  new URL("./risk-management/", SCOPE).href,
+  new URL("./data-sources/", SCOPE).href,
+  new URL("./faq/", SCOPE).href,
 ];
 
 self.addEventListener("install", (event) => {
