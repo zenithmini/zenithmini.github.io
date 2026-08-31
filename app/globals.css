@@ -796,6 +796,16 @@ button { color: inherit; }
 .simulator-metrics span { color: var(--muted); font-size: 0.6875rem; font-weight: 800; }
 .simulator-metrics strong { font-size: 1.375rem; }
 .simulator-metrics small { color: var(--muted); font-size: 0.625rem; }
+.fibonacci-validation { padding: 22px; }
+.fibonacci-validation-metrics { border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 15px; overflow: hidden; }
+.fibonacci-validation-metrics > div { border-right: 1px solid var(--line); display: grid; gap: 5px; padding: 17px; }
+.fibonacci-validation-metrics > div:last-child { border-right: 0; }
+.fibonacci-validation-metrics span { color: var(--muted); font-size: 0.6875rem; font-weight: 800; }
+.fibonacci-validation-metrics strong { color: var(--green); font-size: 1.45rem; }
+.fibonacci-validation-metrics .is-risk strong { color: var(--red); }
+.fibonacci-validation-metrics small { color: var(--muted); font-size: 0.625rem; line-height: 1.5; }
+.fibonacci-sample-warning { align-items: center; background: var(--amber-soft); border-radius: 9px; color: #77501f; display: flex; font-size: 0.6875rem; gap: 7px; line-height: 1.6; margin: 14px 0 0; padding: 10px 12px; }
+.fibonacci-validation-note { color: var(--muted); font-size: 0.6875rem; line-height: 1.65; margin: 12px 0 0; }
 .backtest-chart-card, .backtest-trades { padding: 22px; }
 .backtest-chart { margin-top: 14px; }
 .backtest-chart svg { height: 230px; overflow: visible; width: 100%; }
@@ -1062,6 +1072,10 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .simulator-metrics > div, .simulator-metrics > div:nth-child(3n) { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
   .simulator-metrics > div:nth-child(2n) { border-right: 0; }
   .simulator-metrics > div:nth-last-child(-n+2) { border-bottom: 0; }
+  .fibonacci-validation-metrics { grid-template-columns: 1fr 1fr; }
+  .fibonacci-validation-metrics > div { border-bottom: 1px solid var(--line); }
+  .fibonacci-validation-metrics > div:nth-child(2n) { border-right: 0; }
+  .fibonacci-validation-metrics > div:nth-last-child(-n+2) { border-bottom: 0; }
   .simulator-verdict { align-items: flex-start; flex-direction: column; gap: 16px; }
   .simulator-verdict > strong { align-items: flex-start; }
   .backtest-chart-card, .backtest-trades { padding: 20px 17px; }
@@ -1100,6 +1114,9 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .simulator-metrics { grid-template-columns: 1fr; }
   .simulator-metrics > div, .simulator-metrics > div:nth-child(2n), .simulator-metrics > div:nth-child(3n) { border-bottom: 1px solid var(--line); border-right: 0; }
   .simulator-metrics > div:last-child { border-bottom: 0; }
+  .fibonacci-validation-metrics { grid-template-columns: 1fr; }
+  .fibonacci-validation-metrics > div, .fibonacci-validation-metrics > div:nth-child(2n) { border-bottom: 1px solid var(--line); border-right: 0; }
+  .fibonacci-validation-metrics > div:last-child { border-bottom: 0; }
   .paper-quote-search, .paper-order-form { grid-template-columns: 1fr; }
   .paper-quote { align-items: flex-start; grid-template-columns: 1fr; }
   .paper-account-summary { grid-template-columns: 1fr; }

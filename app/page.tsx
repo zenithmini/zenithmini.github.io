@@ -1359,6 +1359,7 @@ export default function Home() {
                   <option value={40}>近40個交易日</option>
                   <option value={60}>近60個交易日</option>
                   <option value={90}>近90個交易日</option>
+                  <option value={120}>近120個交易日（約半年）</option>
                 </select>
               </label>
               <button type="submit" disabled={simulatorStatus === "loading"}>
@@ -1420,6 +1421,25 @@ export default function Home() {
                   <div><span>交易勝率</span><strong>{simulatorResult.winRatePercent.toFixed(1)}%</strong><small>只計已完成交易</small></div>
                   <div><span>獲利因子</span><strong>{simulatorResult.profitFactor === null ? "∞" : simulatorResult.profitFactor.toFixed(2)}</strong><small>總獲利 ÷ 總虧損</small></div>
                 </section>
+
+                {simulatorResult.fibonacciValidation ? (
+                  <section className="fibonacci-validation card">
+                    <div className="section-heading">
+                      <div><span>訊號後續路徑</span><h2>費波那契預測驗證</h2></div>
+                      <small>每次訊號往後觀察 {simulatorResult.fibonacciValidation.horizonTradingDays} 個交易日</small>
+                    </div>
+                    {simulatorResult.fibonacciValidation.insufficientSample ? (
+                      <p className="fibonacci-sample-warning"><Icon name="alert" size={16} />目前只有 {simulatorResult.fibonacciValidation.sampleCount} 個完成樣本，少於10筆，百分比僅供觀察。</p>
+                    ) : null}
+                    <div className="fibonacci-validation-metrics">
+                      <div><span>38.2%–61.8% 核心區反彈</span><strong>{simulatorResult.fibonacciValidation.coreZoneSuccessRatePercent === null ? "—" : `${simulatorResult.fibonacciValidation.coreZoneSuccessRatePercent.toFixed(1)}%`}</strong><small>{simulatorResult.fibonacciValidation.coreZoneSuccessCount} / {simulatorResult.fibonacciValidation.coreZoneSampleCount} 筆回到波段高點</small></div>
+                      <div><span>1.272 擴展命中</span><strong>{simulatorResult.fibonacciValidation.extension1272HitRatePercent === null ? "—" : `${simulatorResult.fibonacciValidation.extension1272HitRatePercent.toFixed(1)}%`}</strong><small>{simulatorResult.fibonacciValidation.extension1272HitCount} / {simulatorResult.fibonacciValidation.sampleCount} 筆{simulatorResult.fibonacciValidation.medianDaysTo1272 === null ? "" : `・中位 ${simulatorResult.fibonacciValidation.medianDaysTo1272} 日`}</small></div>
+                      <div><span>1.618 擴展命中</span><strong>{simulatorResult.fibonacciValidation.extension1618HitRatePercent === null ? "—" : `${simulatorResult.fibonacciValidation.extension1618HitRatePercent.toFixed(1)}%`}</strong><small>{simulatorResult.fibonacciValidation.extension1618HitCount} / {simulatorResult.fibonacciValidation.sampleCount} 筆{simulatorResult.fibonacciValidation.medianDaysTo1618 === null ? "" : `・中位 ${simulatorResult.fibonacciValidation.medianDaysTo1618} 日`}</small></div>
+                      <div className="is-risk"><span>78.6% 失效觸及</span><strong>{simulatorResult.fibonacciValidation.invalidationRatePercent === null ? "—" : `${simulatorResult.fibonacciValidation.invalidationRatePercent.toFixed(1)}%`}</strong><small>{simulatorResult.fibonacciValidation.invalidationCount} / {simulatorResult.fibonacciValidation.sampleCount} 筆先失守關鍵價</small></div>
+                    </div>
+                    <p className="fibonacci-validation-note">完成樣本 {simulatorResult.fibonacciValidation.sampleCount} 筆；另有 {simulatorResult.fibonacciValidation.pendingSampleCount} 筆尚未走完觀察期。這是歷史訊號驗證，不代表未來一定到價。</p>
+                  </section>
+                ) : null}
 
                 <section className="backtest-chart-card card">
                   <div className="section-heading"><div><span>虛擬資產曲線</span><h2>策略帳戶變化</h2></div><small>初始 {formatCurrency(simulatorResult.initialCapital)}</small></div>
