@@ -75,6 +75,9 @@ test("public build calls the private analysis API without shipping market-data o
   assert.match(bundle, /字體大小/);
   assert.match(bundle, /\/api\/simulator\/backtest/);
   assert.match(bundle, /策略歷史回測/);
+  assert.match(bundle, /費波那契預測驗證/);
+  assert.match(bundle, /78\.6% 失效觸及/);
+  assert.match(bundle, /近120個交易日（約半年）/);
   assert.match(bundle, /虛擬交易市場/);
   assert.match(bundle, /用盤後收盤價模擬成交/);
   assert.match(bundle, /tw-signal-paper-account/);
