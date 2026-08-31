@@ -212,6 +212,24 @@ export type BacktestTrade = {
   returnPercent: number;
 };
 
+export type FibonacciValidation = {
+  horizonTradingDays: number;
+  sampleCount: number;
+  pendingSampleCount: number;
+  coreZoneSampleCount: number;
+  coreZoneSuccessCount: number;
+  coreZoneSuccessRatePercent: number | null;
+  extension1272HitCount: number;
+  extension1272HitRatePercent: number | null;
+  extension1618HitCount: number;
+  extension1618HitRatePercent: number | null;
+  invalidationCount: number;
+  invalidationRatePercent: number | null;
+  medianDaysTo1272: number | null;
+  medianDaysTo1618: number | null;
+  insufficientSample: boolean;
+};
+
 export type BacktestResult = {
   code: string;
   name: string;
@@ -229,6 +247,7 @@ export type BacktestResult = {
   completedTrades: number;
   winRatePercent: number;
   profitFactor: number | null;
+  fibonacciValidation?: FibonacciValidation;
   assumptions: string[];
   trades: BacktestTrade[];
   equityCurve: Array<{ date: string; equity: number }>;
@@ -365,7 +384,7 @@ export async function fetchStrategyBacktest(code: string, periodDays: number): P
   if (!isSupportedStockCode(normalizedCode)) {
     throw new Error("請輸入正確的上市／上櫃股票或 ETF 代碼。");
   }
-  const normalizedPeriod = Math.min(90, Math.max(20, Math.trunc(periodDays || 60)));
+  const normalizedPeriod = Math.min(120, Math.max(20, Math.trunc(periodDays || 60)));
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 60_000);
   try {
