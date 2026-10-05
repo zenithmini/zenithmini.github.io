@@ -1199,3 +1199,29 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   *, *::before, *::after { transition-duration: .01ms !important; }
   .history-actions button:disabled .icon { animation: none; }
 }
+/* Private quote page: no public entry until this browser opts in. */
+.private-quote-shell { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+.private-quote-home { display: inline-block; color: var(--text-muted, #637085); margin-bottom: 24px; }
+.private-quote-header { margin-bottom: 24px; }
+.private-quote-header h1 { margin: 8px 0 12px; }
+.private-quote-card { margin-bottom: 18px; padding: 24px; }
+.private-quote-card h2 { font-size: 20px; margin: 0 0 14px; }
+.private-quote-card p, .private-quote-note { color: var(--text-muted, #637085); line-height: 1.7; }
+.private-quote-heading { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.private-quote-form { display: grid; gap: 10px; margin: 16px 0; }
+.private-quote-form input { min-height: 46px; padding: 10px 12px; border: 1px solid #c6d2df; border-radius: 10px; color: #172c44; background: #fff; font-size: inherit; }
+.private-quote-form .primary-button { min-height: 46px; }
+.private-quote-check { display: flex; align-items: flex-start; gap: 9px; line-height: 1.6; }
+.private-quote-check input { margin-top: 5px; flex-shrink: 0; width: 18px; height: 18px; }
+.private-quote-secondary { padding: 9px 12px; border: 1px solid #c6d2df; border-radius: 9px; background: #fff; color: #294969; cursor: pointer; }
+.private-quote-error { padding: 14px 18px; border-radius: 10px; background: #fff0ed; color: #9b3b24; }
+.private-quote-stale { background: #fff6db; padding: 12px; border-radius: 8px; }
+.private-quote-price { margin: 20px 0; font-size: 44px; font-weight: 700; }
+.private-quote-price small { font-size: 18px; font-weight: 400; }
+.private-quote-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.private-quote-metrics dt { color: #637085; font-size: 14px; }
+.private-quote-metrics dd { margin: 5px 0 0; color: #172c44; font-weight: 600; }
+.sidebar-nav a.private-quote-nav { display: flex; align-items: center; gap: 12px; padding: 13px 14px; text-decoration: none; border-radius: 12px; color: #294969; }
+.private-quote-nav span { display: grid; gap: 4px; }
+.private-quote-nav small { font-size: 12px; color: #637085; }
+@media (max-width: 480px) { .private-quote-shell { padding: 22px 14px 40px; } .private-quote-card { padding: 18px; } .private-quote-metrics { grid-template-columns: 1fr; gap: 14px; } }
