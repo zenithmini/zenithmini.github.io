@@ -1,4 +1,4 @@
-const CACHE_NAME = "tw-signal-v19";
+const CACHE_NAME = "tw-signal-v20";
 const SCOPE = new URL("./", self.location.href);
 const SHELL = [
   new URL("./", SCOPE).href,
@@ -34,6 +34,8 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Private quotes and authenticated requests must never enter the offline cache.
+  if (request.headers.has("authorization") || /\/(?:realtime|api\/private)(?:\/|$)/.test(url.pathname)) return;
 
   if (request.mode === "navigate") {
     event.respondWith(
