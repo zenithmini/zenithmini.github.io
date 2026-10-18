@@ -115,7 +115,7 @@ export default function PrivateQuotePage() {
 
   return (
     <main className="private-quote-shell">
-      <a className="private-quote-home" href="../">← 返回首頁</a>
+      <a className="private-quote-home" href="../?v=private-quotes-v1">← 返回首頁</a>
       <header className="private-quote-header">
         <span className="eyebrow">個人測試</span>
         <h1>即時報價測試</h1>
