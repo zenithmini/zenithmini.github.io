@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { PRIVATE_QUOTE_ENTRY_KEY } from "@/lib/private-quotes";
 import {
   AnalysisResult,
   AnalysisPayload,
@@ -421,6 +422,7 @@ export default function Home() {
   const [usingCache, setUsingCache] = useState(false);
   const [activeView, setActiveView] = useState<ViewMode>("analysis");
   const [fontSize, setFontSize] = useState<FontSize>("standard");
+  const [showPrivateQuotes, setShowPrivateQuotes] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [screenerStatus, setScreenerStatus] = useState<"loading" | "building" | "ready" | "error">("loading");
   const [screenerSnapshot, setScreenerSnapshot] = useState<ScreenerSnapshot | null>(null);
@@ -470,6 +472,7 @@ export default function Home() {
         const savedWatchlist = localStorage.getItem("tw-signal-watchlist");
         const savedHistory = localStorage.getItem("tw-signal-history");
         const savedFontSize = localStorage.getItem("tw-signal-font-size") as FontSize | null;
+        setShowPrivateQuotes(localStorage.getItem(PRIVATE_QUOTE_ENTRY_KEY) === "1");
         const savedBacktests = localStorage.getItem("tw-signal-backtests");
         const savedPaperAccount = localStorage.getItem("tw-signal-paper-account");
         const savedPaperChallenges = localStorage.getItem("tw-signal-paper-challenges");
@@ -881,6 +884,9 @@ export default function Home() {
             <button className={activeView === "guide" ? "active" : ""} type="button" onClick={() => switchView("guide")}>
               <Icon name="book" size={19} /><span><strong>策略白話說明</strong><small>1：3、停損與股數</small></span>
             </button>
+            {showPrivateQuotes && <a className="private-quote-nav" href="./realtime/">
+              <Icon name="chart" size={19} /><span><strong>即時報價（私人測試）</strong><small>需通行碼才能讀取行情</small></span>
+            </a>}
           </nav>
           <section className="font-size-setting" aria-labelledby="font-size-setting-label">
             <div>
@@ -901,6 +907,13 @@ export default function Home() {
               ))}
             </div>
           </section>
+          {showPrivateQuotes && <section className="font-size-setting">
+            <strong>私人報價入口</strong>
+            <button className="private-quote-secondary" type="button" onClick={() => {
+              setShowPrivateQuotes(false);
+              try { localStorage.removeItem(PRIVATE_QUOTE_ENTRY_KEY); } catch { /* Keep this view hidden even if storage is unavailable. */ }
+            }}>隱藏這個瀏覽器的入口</button>
+          </section>}
           <div className="sidebar-note">
             <Icon name="shield" size={18} />
             <p>先看大盤，再看個股。所有結果僅供研究與風險管理參考。</p>
